@@ -184,12 +184,14 @@ int main()
 				show_cur_block(block_shape, block_angle, block_x, block_y);
 			}
 
-			if (stage_data[level].clear_line == lines)	//클리어 스테이지
-			{
-				level++;
-				lines = 0;
-			}
+			// 수정: 레벨업 목표보다 더 많은 줄을 한 번에 채웠을 때 레벨업 불가 버그
+			//if (stage_data[level].clear_line == lines)	//클리어 스테이지
+			//{
+			//	level++;
+			//	lines = 0;
+			//}
 
+			// 수정(추가): 새 로직
 			if (lines >= stage_data[level].clear_line)	//클리어 스테이지 (수정: >= 사용)
 			{
 				lines = lines - stage_data[level].clear_line; // 초과된 라인 수를 다음 레벨에 반영
@@ -257,6 +259,8 @@ int init()
 	//전역변수 초기화
 	level = 0;
 	lines = 0;
+	// 수정: 게임 오버 후 새 게임을 시작할 때마다 점수 초기화
+	score = 0;
 	ab_x = 5;//블록이 처음나오는 위치
 	ab_y = 1;//블록이 처음나오는 위치
 
@@ -351,6 +355,9 @@ int erase_cur_block(int shape, int angle, int x, int y)
 	{
 		for (j = 0; j < 4; j++)
 		{
+			// 수정: y좌표가 0 미만(하늘)이면 gotoxy 함수를 호출하지 않음
+			if ((j + y) < 0)
+				continue;
 			if (block[shape][angle][j][i] == 1)
 			{
 				gotoxy((i + x) * 2 + ab_x, j + y + ab_y);
@@ -360,6 +367,9 @@ int erase_cur_block(int shape, int angle, int x, int y)
 			}
 		}
 	}
+	// 수정: show_cur_block() 함수와 마찬가지로 커서/색상 후처리
+	SetColor(BLACK);
+	gotoxy(77, 23);
 	return 0;
 }
 
@@ -408,7 +418,7 @@ int make_new_block()
 		return 0;							//막대기 모양으로 리턴
 
 	shape = (rand() % 6) + 1;		//shape에는 1~6의 값이 들어감
-	show_next_block(shape);
+	// show_next_block(shape); 수정: main 함수와 move_block 함수에서 이미 올바르게 호출되고 있음
 	return shape;
 }
 
@@ -416,26 +426,31 @@ int make_new_block()
 int strike_check(int shape, int angle, int x, int y)
 {
 	int i, j;
-	int block_dat;
+	int block_dat; // 지금 검사하려는 바로 그 한 칸이 막혀있는지(1), 
+				   // 아니면 비어있는지(0)를 저장하는 임시 변수
 
 	for (i = 0; i < 4; i++) // i는 4x4 블록 격자의 행
 	{
-		// *** 수정된 부분 ***
-		// 검사할 실제 y 좌표 (y + i)가 0보다 작은지(화면 밖인지) 확인
-		if (y + i < 0)
-		{
-			continue; // 이 행(i)은 화면 위에 있으니 검사할 필요 없음
-		}
-
 		for (j = 0; j < 4; j++) // j는 4x4 블록 격자의 열
 		{
-			// 1. 유효한 범위(1~12)에 있는지 먼저 확인합니다.
-			if (((x + j) > 0) || ((x + j) < 13))
-				// 2. 유효한 범위면, total_block에서 값을 가져옵니다.
-				block_dat = total_block[y + i][x + j];
+			// 수정: 천장 위에서 벽 좌우 바깥으로 벗어나는 버그 
+			// x축(가로)을 먼저 확인 (|| 를 && 로 수정)
+			if (((x + j) > 0) && ((x + j) < 13)) {
+				// 유효함 범위면, y축(세로)이 하늘인지, 보드 안인지 검사
+				// 검사할 실제 y 좌표 (y + i)가 0보다 작은지(화면 밖인지) 확인
+				if (y + i < 0)
+				{
+					// 하늘 (y < 0)은 비어있는 '0'으로 간주
+					block_dat = 0;
+				}
+				else {
+					// 유효한 범위면, total_block에서 값을 가져옵니다.
+					block_dat = total_block[y + i][x + j];
+				}
+			}
 			else {
-				// 3. 유효한 범위(1~12)가 아니면 (즉, 0, 13, -1, 14 등)
-				//    모두 벽(1)으로 간주합니다.
+				// x축이 0, 13 또는 그 밖 (벽)
+				// 모두 벽(1)으로 간주
 				block_dat = 1;
 				// *** (수정 끝) ***
 			}
@@ -837,15 +852,16 @@ int show_logo()
 
 			for (j = 0; j < 5; j++)
 			{
-				// 수정: 18 >> 17
-				// show_cur_block(..., x=6, ...)를 호출하면, 실제 화면에 그려지는 
-				// X좌표는 (i + x)*2 + ab_x = (0 + 6)*2 + 5 = 17부터 시작하므로 17로 수정
-				gotoxy(17, 14 + j);
 				// 수정: show_logo 함수에서 로고 애니메이션을 위해 블록을 지울 때, 
-//				// gotoxy의 X좌표가 18로 설정되어 있었습니다.
+				// gotoxy의 X좌표가 18로 설정되어 있었음
 				// 첫 번째 블록이 그려지는 실제 X좌표는(0 + 6) * 2 + 5 = 17이므로, 
 				// 17열의 블록이 지워지지 않고 남아 색상이 겹치는 버그가 발생
-				gotoxy(17, 14 + j);
+				// 
+				// -> 재수정
+				// 17 >> 19
+				// 간격 재조정으로 인해 실제 호출은 show_cur_block(..., x=7, ...)이므로, 
+				// X좌표는 (i + x)*2 + ab_x = (0 + 7)*2 + 5 = 19부터 시작하므로 19로 수정
+				gotoxy(19, 14 + j);
 				printf("                                                          ");
 
 
