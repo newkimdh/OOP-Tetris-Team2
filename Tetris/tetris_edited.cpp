@@ -1,4 +1,4 @@
-#include <stdio.h>
+﻿#include <stdio.h>
 #include <conio.h>
 #include <string.h>
 #include <Windows.h>
@@ -162,12 +162,18 @@ int main()
 						break;
 					}
 				}
-				if (keytemp == 32)	//스페이스바를 눌렀을때
+				if (keytemp == 32)	//스페이스바를 눌렀을 때
 				{
 					while (is_gameover == 0)
 					{
 						is_gameover = move_block(&block_shape, &block_angle, &block_x, &block_y, &next_block_shape);
 					}
+					// 수정
+					// '하드 드롭'이 2(착지)를 반환해서 루프가 끝났다면
+					// 다음 키 입력을 위해 즉시 상태를 0(정상)으로 되돌림
+					if (is_gameover == 2)
+						is_gameover = 0;
+
 					show_cur_block(block_shape, block_angle, block_x, block_y);
 				}
 			}
@@ -449,9 +455,21 @@ int merge_block(int shape, int angle, int x, int y)
 	int i, j;
 	for (i = 0; i < 4; i++)
 	{
-		for (j = 0; j < 4; j++)
+		// 수정
+		// move_block이 y < 0 일 때도 이 함수를 호출할 수 있으므로,
+		// 블록을 합칠 실제 y좌표 (y + i)가 0보다 작은지(화면 밖인지) 확인
+		if (y + i < 0)
 		{
-			total_block[y + i][x + j] |= block[shape][angle][i][j];//비트연산자 or로 사용해서 있는지 확인
+			// 화면 밖(음수 인덱스)에는 합칠 수 없으므로 이 행(i)은 건너뜀
+			continue;
+		}
+
+		for (j = 0; j < 4; j++) // 4x4 격자의 열
+		{
+			// 4x4 격자의 블록 조각(1 또는 0)을
+			// total_block(게임판)의 해당 위치에 비트 OR 연산자로 합침
+			// (y+i는 위에서 0 이상임이 보장됨)
+			total_block[y + i][x + j] |= block[shape][angle][i][j];
 		}
 	}
 	check_full_line();//merge하고 check를 해서 line를 최신화
@@ -494,25 +512,51 @@ int show_gameover()
 
 int move_block(int* shape, int* angle, int* x, int* y, int* next_shape)
 {
-	erase_cur_block(*shape, *angle, *x, *y);//값으로 넣어야해서 *를 붙이고 넣는다.
+	/*
+	 * [수정 이유]
+	 * 기존 코드는 y좌표가 음수일 때(예: y=-2) 충돌이 감지되면,
+	 * (예: total_block[0]에 이미 블록이 차있을 경우)
+	 * 이를 즉시 '게임 오버'(return 1)로 잘못 처리했습니다.
+	 * 이로 인해 블록이 화면에 보이기도 전에 스페이스바가 멈추는(씹히는) 현상이 발생했습니다.
+	 *
+	 * [수정 내용]
+	 * 충돌이 감지되면, 일단 y좌표를 되돌리고( (*y)-- ) 블록을 합친(merge_block) *후에*,
+	 * 그 합쳐진 위치(y)가 여전히 0보다 작은지(화면 밖인지)를 검사하도록 순서를 변경했습니다.
+	 * 이래야만 '화면 밖에서 블록이 쌓이는' 진짜 게임 오버 상황에서만 1을 반환합니다.
+	 */
 
-	(*y)++;	//블럭을 한칸 아래로 내림
+	 // 1. 현재 위치의 블록을 지움. (잔상 제거)
+	erase_cur_block(*shape, *angle, *x, *y); //값으로 넣어야해서 *를 붙이고 넣는다.
+
+	// 2. y좌표를 한 칸 아래로 내림
+	(*y)++;	
+
+	// 3. 내려간 위치에서 충돌이 있는지 검사
 	if (strike_check(*shape, *angle, *x, *y) == 1)
 	{
+		// 4. [충돌 감지됨]
+		//    y좌표를 충돌 직전(한 칸 위)으로 다시 되돌림
+		(*y)--;
+
+		// 5. 되돌린 위치(y)에 현재 블록을 쌓음 (total_block에 합침)
+		merge_block(*shape, *angle, *x, *y);
+
+		// 6. [수정된 게임 오버 판별]
+		//    블록이 쌓인 위치(y)가 여전히 화면 밖(0 미만)인지 검사
 		if (*y < 0)	//게임오버
 		{
 			return 1;
 		}
-		(*y)--;//충돌을 감지했으니까 y--해서 직전으로 되돌리기
-		merge_block(*shape, *angle, *x, *y);//블록 합치기
+		
+		// 7. 블록 합치기
 		*shape = *next_shape;
 		*next_shape = make_new_block();
 
-		block_start(*shape, angle, x, y);	//angle,x,y는 포인터임
+		block_start(*shape, angle, x, y);	// angle,x,y는 포인터임
 		show_next_block(*next_shape);
-		return 2;//다른 블록이랑 부딪힐 경우
+		return 2; //다른 블록이랑 부딪힐 경우
 	}
-	return 0;
+	return 0; // 충돌이 아니어서 게임 계속 진행
 }
 
 int rotate_block(int shape, int* angle, int* x, int* y)
@@ -762,26 +806,26 @@ int show_logo()
 {
 	//로고 보여주는 함수
 	int i, j;
-	gotoxy(13, 3);
-	printf("┏━━━━━━━━━━━━━━━━━━━━━━━┓");
+	gotoxy(21, 3);
+	printf("┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓");
 	Sleep(100);
-	gotoxy(13, 4);
-	printf("┃◆◆◆  ◆◆◆  ◆◆◆   ◆◆     ◆   ◆◆◆ ┃");
+	gotoxy(21, 4);
+	printf("┃ ◆◆◆   ◆◆◆   ◆◆◆   ◆◆◆    ◆   ◆◆◆ ┃");
 	Sleep(100);
-	gotoxy(13, 5);
-	printf("┃  ◆    ◆        ◆     ◆ ◆    ◆   ◆     ┃");
+	gotoxy(21, 5);
+	printf("┃  ◆    ◆      ◆    ◆  ◆   ◆   ◆   ┃");
 	Sleep(100);
-	gotoxy(13, 6);
-	printf("┃  ◆    ◆◆◆    ◆     ◆◆     ◆     ◆   ┃");
+	gotoxy(21, 6);
+	printf("┃  ◆    ◆◆◆    ◆    ◆◆◆    ◆    ◆  ┃");
 	Sleep(100);
-	gotoxy(13, 7);
-	printf("┃  ◆    ◆        ◆     ◆ ◆    ◆       ◆ ┃");
+	gotoxy(21, 7);
+	printf("┃  ◆    ◆      ◆    ◆ ◆    ◆     ◆ ┃");
 	Sleep(100);
-	gotoxy(13, 8);
-	printf("┃  ◆    ◆◆◆    ◆     ◆  ◆   ◆   ◆◆◆ ┃");
+	gotoxy(21, 8);
+	printf("┃  ◆    ◆◆◆    ◆    ◆  ◆   ◆   ◆◆◆ ┃");
 	Sleep(100);
-	gotoxy(13, 9);
-	printf("┗━━━━━━━━━━━━━━━━━━━━━━━┛");
+	gotoxy(21, 9);
+	printf("┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛");
 
 	gotoxy(28, 20);
 	printf("Please Press Any Key~!");
@@ -806,10 +850,10 @@ int show_logo()
 
 
 			}
-			show_cur_block(rand() % 7, rand() % 4, 6, 14);
-			show_cur_block(rand() % 7, rand() % 4, 12, 14);
+			show_cur_block(rand() % 7, rand() % 4, 7, 14);
+			show_cur_block(rand() % 7, rand() % 4, 13, 14);
 			show_cur_block(rand() % 7, rand() % 4, 19, 14);
-			show_cur_block(rand() % 7, rand() % 4, 24, 14);
+			show_cur_block(rand() % 7, rand() % 4, 25, 14);
 		}
 		if (_kbhit())
 			break;
