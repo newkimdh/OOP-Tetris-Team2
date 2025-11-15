@@ -191,12 +191,13 @@ int main()
 			//	lines = 0;
 			//}
 
-			// 수정(추가): 새 로직
-			if (lines >= stage_data[level].clear_line)	//클리어 스테이지 (수정: >= 사용)
-			{
-				lines = lines - stage_data[level].clear_line; // 초과된 라인 수를 다음 레벨에 반영
-				level++;
-			}
+			// 재수정: 레벨업 로직은 check_full_line() 함수로 이동
+			//// 수정(추가): 새 로직
+			//if (lines >= stage_data[level].clear_line)	//클리어 스테이지 (수정: >= 사용)
+			//{
+			//	lines = lines - stage_data[level].clear_line; // 초과된 라인 수를 다음 레벨에 반영
+			//	level++;
+			//}
 
 			if (is_gameover == 1)
 			{
@@ -623,16 +624,22 @@ int rotate_block(int shape, int* angle, int* x, int* y)
 int check_full_line()
 {
 	int i, j, k;
-	for (i = 0; i < 20; i++)
+	// 추가: 1. 지금 턴에서 지운 줄 수를 세는 지역 변수
+	int lines_cleared_this_turn = 0;
+
+	for (i = 0; i < 20; i++) // 유지: 2. 맨 위부터 검사
 	{
 		for (j = 1; j < 13; j++)
 		{
 			if (total_block[i][j] == 0)
 				break;
 		}
-		if (j == 13)	//한줄이 다 채워졌음
+		if (j == 13)	// i번째 줄이 다 채워졌음
 		{
-			lines++;
+			// 수정: 3. 전역 변수 lines++ 대신 일단 지역 변수 증가
+			//lines++;
+			lines_cleared_this_turn++;
+
 			show_total_block();
 			SetColor(BLUE);
 			gotoxy(1 * 2 + ab_x, i + ab_y);
@@ -647,7 +654,8 @@ int check_full_line()
 				printf("  ");
 				Sleep(10);
 			}//지우기
-			//한줄지우고 전부 내리기
+
+			// 유지: 4. 한 줄 지우고 전부 내리기
 			for (k = i; k > 0; k--)
 			{
 				for (j = 1; j < 13; j++)
@@ -655,9 +663,30 @@ int check_full_line()
 			}
 			for (j = 1; j < 13; j++)
 				total_block[0][j] = 0;//지운칸 초기화
-			score += 100 + (level * 10) + (rand() % 10);
-			show_gamestat();
+
+			// 삭제: 점수, 스탯 갱신 로직을 루프 바깥으로 이동
+			// score += 100 + (level * 10) + (rand() % 10);
+			// show_gamestat();
 		}
+	}
+
+	// 추가: 5. 루프가 모두 끝난 후, 바깥에서 한 번만 로직 처리
+	if (lines_cleared_this_turn > 0) {
+		// 6. 전역 lines 변수에 총 지울 수 반영
+		lines += lines_cleared_this_turn;
+
+		// 7. 레벨업 로직
+		if (lines >= stage_data[level].clear_line) {
+			// lines = 0;
+			lines = lines - stage_data[level].clear_line;
+			level++;
+		}
+
+		// 8. 점수 계산 (나중에 한 번에 지운 줄 수 비례 점수 증가 개선 가능
+		for (int k = 0; k < lines_cleared_this_turn; k++) {
+			score += 100 + (level * 10) + (rand() % 10);
+		}
+		show_gamestat();
 	}
 	return 0;
 }
