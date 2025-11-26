@@ -15,6 +15,8 @@ namespace Tetris {
         int totalLines;
         bool gameOver;
         bool isPaused = false;
+        int heldBlockType = -1; // -1: 비어있음
+        bool canHold = true;    // true: 이번 턴에 사용 가능
 
 
         std::vector<StageConfig> stages;
@@ -36,6 +38,7 @@ namespace Tetris {
         void showLogo();
         void showGameOver();
         void drawGhost(bool erase);
+        void showHoldBlock();
     public:
         Game();
         void run();

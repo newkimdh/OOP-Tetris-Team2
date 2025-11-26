@@ -23,7 +23,8 @@ namespace Tetris {
 
             board.setLevel(level);
             board.reset();
-           
+            heldBlockType = -1;
+            canHold = true;
             board.draw();
 
             nextBlockType = makeNewBlockType();
@@ -87,10 +88,13 @@ namespace Tetris {
         nextBlockType = makeNewBlockType();
         showNextBlockPreview();
 
+        canHold = true;
+        showHoldBlock();
         // [추가] 처음 나올 때도 그려주기
         drawGhost(false);
         currentBlock.draw();
     }
+   
 
     void Game::handleInput() {
         if (_kbhit()) {
@@ -131,6 +135,41 @@ namespace Tetris {
             }
             else {
                 // P 키 확인 (대소문자 모두)
+                if (key == 'c' || key == 'C') {
+                    // 1. 이번 턴에 이미 썼다면 무시
+                    if (!canHold) return;
+
+                    // 2. 현재 화면에 있는 블록 지우기 (중요: 안 지우면 잔상 남음)
+                    currentBlock.draw(true);
+                    drawGhost(true);
+
+                    if (heldBlockType == -1) {
+                        // Case A: 킵 된게 없을 때
+                        heldBlockType = currentBlock.getType(); // 현재 블록 저장
+                        spawnNextBlock(); // 다음 블록을 현재 블록으로 가져옴
+
+                        // spawnNextBlock에서 canHold=true가 되버리므로 다시 잠금
+                        canHold = false;
+                    }
+                    else {
+                        // Case B: 킵 된게 있을 때 (서로 교체)
+                        int tempType = currentBlock.getType();
+
+                        // 저장된 타입으로 현재 블록 재생성 (위치, 각도 초기화)
+                        currentBlock.spawn(heldBlockType);
+                        heldBlockType = tempType; // 현재 타입을 저장소로
+
+                        // 교체 후 잠금
+                        canHold = false;
+                    }
+
+                    // 3. 변경된 상태 화면에 그리기
+                    showHoldBlock();    // 왼쪽 홀드창 갱신
+                    showNextBlockPreview(); // (Case A일 경우 필요)
+                    currentBlock.draw(); // 현재 블록 다시 그리기
+
+                    return; // 입력 처리 완료
+                }
                 if (key == 'p' || key == 'P') {
                     isPaused = !isPaused; // 상태 반전
 
@@ -450,5 +489,40 @@ namespace Tetris {
 
         // 3. 고스트 그리기 (isGhost = true 로 호출)
         ghost.draw(erase, true);
+    }
+
+    // [Game 클래스 내부 private 함수로 추가]
+
+    void Game::showHoldBlock() {
+        // 1. UI 틀 그리기 (왼쪽 상단 좌표: x=2, y=1)
+        ConsoleHelper::setColor(Color::GRAY);
+        ConsoleHelper::gotoXY(33, 15); printf("┏━━ HOLD ━━┓");
+        for (int i = 0; i < 6; i++) {
+            ConsoleHelper::gotoXY(33, 16 + i); printf("┃          ┃");
+        }
+        ConsoleHelper::gotoXY(33, 22); printf("┗━━━━━━━━━━┛");
+
+        // 2. 저장된 블록이 없으면 리턴
+        if (heldBlockType == -1) return;
+
+        // 3. 저장된 블록 그리기
+        // 좌표 계산: UI 박스 내부 (x=4, y=3 정도)
+        int startX = 36;
+        int startY = 17;
+
+        const auto& shape = ShapeRepository::getShape(heldBlockType)[0]; // 기본 각도(0)로 표시
+        ConsoleHelper::setColor(ShapeRepository::getColorForType(heldBlockType));
+
+        for (int r = 0; r < 4; ++r) {
+            for (int c = 0; c < 4; ++c) {
+                ConsoleHelper::gotoXY((r * 2) + startX, c + startY);
+                if (shape[c][r] == 1) {
+                    printf("■");
+                }
+                else {
+                    printf("  ");
+                }
+            }
+        }
     }
 }
