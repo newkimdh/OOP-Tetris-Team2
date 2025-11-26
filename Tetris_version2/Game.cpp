@@ -139,6 +139,10 @@ namespace Tetris {
                     // 1. 이번 턴에 이미 썼다면 무시
                     if (!canHold) return;
 
+                    if (heldBlockType != -1 && heldBlockType == currentBlock.getType()) {
+                        return;
+                    }
+
                     // 2. 현재 화면에 있는 블록 지우기 (중요: 안 지우면 잔상 남음)
                     currentBlock.draw(true);
                     drawGhost(true);
@@ -489,6 +493,8 @@ namespace Tetris {
 
         // 3. 고스트 그리기 (isGhost = true 로 호출)
         ghost.draw(erase, true);
+        //drawGhost(true) => 고스트 지우기
+        //drawGhost(false) => 고스트 그리기
     }
 
     // [Game 클래스 내부 private 함수로 추가]
