@@ -1,6 +1,8 @@
 #include "ConsoleHelper.h"
 #include <windows.h>
 #include <iostream>
+#include <conio.h>
+#include <limits>
 
 namespace Tetris {
     void ConsoleHelper::gotoXY(int x, int y) {
@@ -29,5 +31,21 @@ namespace Tetris {
 
     void ConsoleHelper::clear() {
         system("cls");
+    }
+
+    void ConsoleHelper::flushInput() {
+        // 1) 키보드 버퍼 비우기 (_kbhit / _getch)
+        while (_kbhit()) {
+            _getch();
+        }
+
+        // 2) cin 스트림 상태/버퍼 정리
+        std::cin.clear();
+
+        // 버퍼에 뭐가 있을 때만 ignore 호출 (없으면 블록되니까)
+        auto buf = std::cin.rdbuf();
+        if (buf && buf->in_avail() > 0) {
+            std::cin.ignore((std::numeric_limits<std::streamsize>::max)(), '\n');
+        }
     }
 }

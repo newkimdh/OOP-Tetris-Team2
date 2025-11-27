@@ -5,6 +5,11 @@
 #include <conio.h>
 #include <ctime>
 #include <windows.h> // Sleep
+#include <fstream>   // [추가] 파일 저장
+#include <cstring>   // [추가] strcspn, strlen 등 사용
+#include <string>
+#include <iomanip>   // setw, left, right
+#include <algorithm>
 
 namespace Tetris {
     Game::Game() : level(0), score(0), totalLines(0), gameOver(false) {
@@ -47,7 +52,8 @@ namespace Tetris {
                 }
 
                 if (gameOver) {
-                    showGameOver();
+                    showGameOver();           // 기존 게임 오버 팝업
+                    promptNameAndSaveScore(); // [추가] 닉네임 입력 팝업
                     break;
                 }
 
@@ -181,7 +187,7 @@ namespace Tetris {
                         // 일시정지 메시지 출력
                         ConsoleHelper::gotoXY(OFFSET_X + 4, 10);
                         ConsoleHelper::setColor(Color::RED);
-                        printf(" PAUSED ");
+                        std::cout << " PAUSED ";
                     }
                     else {
                         // 게임 화면 복구
@@ -265,6 +271,11 @@ namespace Tetris {
             board.merge(currentBlock);
 
             int lines = board.processFullLines();
+
+            // [수정] 줄이 안 지워졌을 때 회색으로 안 바뀜, 직접 보드를 그려줘야 함
+            if (lines == 0) 
+                board.draw();
+            
             if (lines > 0) {
                 totalLines += lines;
                 for (int k = 0; k < lines; k++) score += 100 + (level * 10) + (rand() % 10);
@@ -374,14 +385,14 @@ namespace Tetris {
         static const int STAT_X = 35;
         ConsoleHelper::setColor(Color::GRAY);
 
-        ConsoleHelper::gotoXY(STAT_X, 7); printf("STAGE");
-        ConsoleHelper::gotoXY(STAT_X + 6, 7); printf("%d", level + 1);
+        ConsoleHelper::gotoXY(STAT_X, 7); std::cout << "STAGE";
+        ConsoleHelper::gotoXY(STAT_X + 6, 7); std::cout << level + 1;
 
-        ConsoleHelper::gotoXY(STAT_X, 9); printf("SCORE");
-        ConsoleHelper::gotoXY(STAT_X, 10); printf("%10d", score);
+        ConsoleHelper::gotoXY(STAT_X, 9); std::cout << "SCORE";
+        ConsoleHelper::gotoXY(STAT_X, 10); std::cout << score;
 
-        ConsoleHelper::gotoXY(STAT_X, 12); printf("LINES");
-        ConsoleHelper::gotoXY(STAT_X, 13); printf("%10d", stages[level].clearLineGoal - totalLines);
+        ConsoleHelper::gotoXY(STAT_X, 12); std::cout << "LINES";
+        ConsoleHelper::gotoXY(STAT_X, 13); std::cout << stages[level].clearLineGoal - totalLines;
     }
 
     void Game::showNextBlockPreview() {
@@ -389,8 +400,8 @@ namespace Tetris {
         for (int i = 1; i < 7; i++) {
             ConsoleHelper::gotoXY(33, i);
             for (int j = 0; j < 6; j++) {
-                if (i == 1 || i == 6 || j == 0 || j == 5) printf(" ■");
-                else printf("  ");
+                if (i == 1 || i == 6 || j == 0 || j == 5) std::cout << " ■";
+                else std::cout << "  ";
             }
         }
 
@@ -405,7 +416,7 @@ namespace Tetris {
             for (int c = 0; c < 4; ++c) {
                 if (shape[c][r] == 1) {
                     ConsoleHelper::gotoXY((r + temp.x) * 2 + OFFSET_X, c + temp.y + OFFSET_Y);
-                    printf("■");
+                    std::cout << "■";
                 }
             }
         }
@@ -414,47 +425,83 @@ namespace Tetris {
     void Game::selectLevel() {
         ConsoleHelper::clear();
         ConsoleHelper::setColor(Color::GRAY);
-        ConsoleHelper::gotoXY(10, 7); printf("┏━━━━━━━━━━<GAME KEY>━━━━━━━━┓");
-        ConsoleHelper::gotoXY(10, 8); printf("┃ UP   : Rotate Block        ┃");
-        ConsoleHelper::gotoXY(10, 9); printf("┃ DOWN : Move One-Step Down  ┃");
-        ConsoleHelper::gotoXY(10, 10); printf("┃ SPACE: Move Bottom Down    ┃");
-        ConsoleHelper::gotoXY(10, 11); printf("┃ LEFT : Move Left           ┃");
-        ConsoleHelper::gotoXY(10, 12); printf("┃ RIGHT: Move Right          ┃");
-        ConsoleHelper::gotoXY(10, 13); printf("┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛");
+        ConsoleHelper::gotoXY(10, 7);  std::cout << "┏━━━━━━━━━<GAME KEY>━━━━━━━━━┓";
+        ConsoleHelper::gotoXY(10, 8);  std::cout << "┃ UP   : Rotate Block        ┃";
+        ConsoleHelper::gotoXY(10, 9);  std::cout << "┃ DOWN : Move One-Step Down  ┃";
+        ConsoleHelper::gotoXY(10, 10); std::cout << "┃ SPACE: Move Bottom Down    ┃";
+        ConsoleHelper::gotoXY(10, 11); std::cout << "┃ LEFT : Move Left           ┃";
+        ConsoleHelper::gotoXY(10, 12); std::cout << "┃ RIGHT: Move Right          ┃";
+        ConsoleHelper::gotoXY(10, 13); std::cout << "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛";
 
-        char buffer[100];
+        // [추가] TOP N 점수판 출력
+        int scoreX = 10;
+        int scoreY = 16;   // GAME KEY 보다 아래
+        showHighScores(HIGH_SCORE_LIMIT, scoreX, scoreY);
+        ConsoleHelper::setColor(Color::GRAY);
+
+        // 이전 키 입력/엔터 싹 비우기
+        ConsoleHelper::flushInput();
+
+        std::string input;
         int selectedLevel = -1;
-        while (selectedLevel < 1 || selectedLevel > 8) {
-            ConsoleHelper::gotoXY(10, 3);
-            printf("Select Start level[1-8]:       \b\b\b\b\b\b\b");
 
-            if (fgets(buffer, 100, stdin) == NULL) continue;
-            if (strlen(buffer) == 2 && buffer[0] >= '1' && buffer[0] <= '8') {
-                selectedLevel = buffer[0] - '0';
+        // 레벨 입력 동안 커서 보이게
+        ConsoleHelper::cursorVisible(true);
+
+        while (selectedLevel < 1 || selectedLevel > 8) {
+            ConsoleHelper::setColor(Color::GRAY);
+            ConsoleHelper::gotoXY(10, 3);
+            std::cout << "Select Start level[1-8]: ";
+
+            // 이전 입력 자국 지우기
+            ConsoleHelper::setColor(Color::GRAY);
+            ConsoleHelper::gotoXY(10 + 26, 3);  // "Select Start level [1-8]: " 길이 기준
+            std::cout << "                                                                         ";
+            ConsoleHelper::gotoXY(10 + 26, 3);
+
+            // 실제 입력
+            if (!std::getline(std::cin, input) || input.empty()) {
+                // 입력 실패시 다시 시도
+                ConsoleHelper::flushInput();
+                continue;
+            }
+            
+            if (input.size() == 1 && input.at(0) >= '1' && input.at(0) <= '8') {
+                selectedLevel = input.at(0) - '0';
+            }
+            else {
+                // 잘못된 입력에 대해서 안내 문구 표시
+                ConsoleHelper::gotoXY(10, 4);
+                ConsoleHelper::setColor(Color::RED);
+                std::cout << "Please enter a number between 1 and 8.";
+                ConsoleHelper::setColor(Color::GRAY);
             }
         }
+        // 레벨 확정 후 커서 다시 숨기기
+        ConsoleHelper::cursorVisible(false);
+
         level = selectedLevel - 1;
     }
 
     void Game::showLogo() {
         ConsoleHelper::clear();
-        ConsoleHelper::gotoXY(21, 3); printf("┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓");
-        ConsoleHelper::gotoXY(21, 4); printf("┃ ◆◆◆   ◆◆◆   ◆◆◆   ◆◆◆    ◆   ◆◆◆ ┃");
-        ConsoleHelper::gotoXY(21, 5); printf("┃  ◆     ◆       ◆     ◆  ◆   ◆   ◆   ┃");
-        ConsoleHelper::gotoXY(21, 6); printf("┃  ◆     ◆◆◆     ◆     ◆◆◆    ◆    ◆  ┃");
-        ConsoleHelper::gotoXY(21, 7); printf("┃  ◆     ◆       ◆     ◆ ◆    ◆      ◆ ┃");
-        ConsoleHelper::gotoXY(21, 8); printf("┃  ◆     ◆◆◆     ◆     ◆  ◆   ◆   ◆◆◆ ┃");
-        ConsoleHelper::gotoXY(21, 9); printf("┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛");
+        ConsoleHelper::gotoXY(21, 3); std::cout << "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓";
+        ConsoleHelper::gotoXY(21, 4); std::cout << "┃ ◆◆◆   ◆◆◆   ◆◆◆   ◆◆◆    ◆   ◆◆◆ ┃";
+        ConsoleHelper::gotoXY(21, 5); std::cout << "┃  ◆    ◆      ◆    ◆  ◆   ◆   ◆   ┃";
+        ConsoleHelper::gotoXY(21, 6); std::cout << "┃  ◆    ◆◆◆    ◆    ◆◆◆    ◆    ◆  ┃";
+        ConsoleHelper::gotoXY(21, 7); std::cout << "┃  ◆    ◆      ◆    ◆ ◆    ◆     ◆ ┃";
+        ConsoleHelper::gotoXY(21, 8); std::cout << "┃  ◆    ◆◆◆    ◆    ◆  ◆   ◆   ◆◆◆ ┃";
+        ConsoleHelper::gotoXY(21, 9); std::cout << "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛";
 
         ConsoleHelper::gotoXY(28, 20);
-        printf("Please Press Any Key~!");
+        std::cout << "Please Press Any Key~!";
 
         ShapeBlock temp;
         for (int i = 0; ; i++) {
             if (i % 40 == 0) {
                 for (int j = 0; j < 5; j++) {
                     ConsoleHelper::gotoXY(19, 14 + j);
-                    printf("                                          ");
+                    std::cout << "                                          ";
                 }
                 int positions[] = { 7, 13, 19, 25 };
                 for (int pos : positions) {
@@ -473,11 +520,11 @@ namespace Tetris {
 
     void Game::showGameOver() {
         ConsoleHelper::setColor(Color::RED);
-        ConsoleHelper::gotoXY(15, 8);  printf("┏━━━━━━━━━━━━━━━━━━━━━━━━━━┓");
-        ConsoleHelper::gotoXY(15, 9);  printf("┃**************************┃");
-        ConsoleHelper::gotoXY(15, 10); printf("┃* GAME OVER        *┃");
-        ConsoleHelper::gotoXY(15, 11); printf("┃**************************┃");
-        ConsoleHelper::gotoXY(15, 12); printf("┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛");
+        ConsoleHelper::gotoXY(15, 8);  std::cout << "┏━━━━━━━━━━━━━━━━━━━━━━━━━━┓";
+        ConsoleHelper::gotoXY(15, 9);  std::cout << "┃**************************┃";
+        ConsoleHelper::gotoXY(15, 10); std::cout << "┃*       GAME OVER        *┃";
+        ConsoleHelper::gotoXY(15, 11); std::cout << "┃**************************┃";
+        ConsoleHelper::gotoXY(15, 12); std::cout << "┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛";
         Sleep(3000);
         system("cls");
     }
@@ -502,11 +549,11 @@ namespace Tetris {
     void Game::showHoldBlock() {
         // 1. UI 틀 그리기 (왼쪽 상단 좌표: x=2, y=1)
         ConsoleHelper::setColor(Color::GRAY);
-        ConsoleHelper::gotoXY(33, 15); printf("┏━━ HOLD ━━┓");
+        ConsoleHelper::gotoXY(33, 15); std::cout << "┏━━ HOLD ━━┓";
         for (int i = 0; i < 6; i++) {
-            ConsoleHelper::gotoXY(33, 16 + i); printf("┃          ┃");
+            ConsoleHelper::gotoXY(33, 16 + i); std::cout << "┃          ┃";
         }
-        ConsoleHelper::gotoXY(33, 22); printf("┗━━━━━━━━━━┛");
+        ConsoleHelper::gotoXY(33, 22); std::cout << "┗━━━━━━━━━━┛";
 
         // 2. 저장된 블록이 없으면 리턴
         if (heldBlockType == -1) return;
@@ -523,12 +570,187 @@ namespace Tetris {
             for (int c = 0; c < 4; ++c) {
                 ConsoleHelper::gotoXY((r * 2) + startX, c + startY);
                 if (shape[c][r] == 1) {
-                    printf("■");
+                    std::cout << "■";
                 }
                 else {
-                    printf("  ");
+                    std::cout << "  ";
                 }
             }
         }
     }
+
+    void Game::promptNameAndSaveScore() {
+        ConsoleHelper::clear();              // 화면 싹 지우고
+        ConsoleHelper::setColor(Color::GRAY);
+
+        int startX = 15;
+        int startY = 4;
+
+        // 간단한 팝업 박스 (ASCII로)
+        ConsoleHelper::gotoXY(startX, startY);     std::cout << "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━┓";
+        ConsoleHelper::gotoXY(startX, startY + 1); std::cout << "┃        SCORE RECORD       ┃";
+        ConsoleHelper::gotoXY(startX, startY + 2); std::cout << "┃                           ┃";
+        ConsoleHelper::gotoXY(startX, startY + 3); std::cout << "┃  Name :                   ┃";
+        ConsoleHelper::gotoXY(startX, startY + 4); std::cout << "┃                           ┃";
+        ConsoleHelper::gotoXY(startX, startY + 5); std::cout << "┃  Score: " << score;
+        int padding = 18 - std::to_string(score).size();
+        for (int i = 0; i < padding; i++) std::cout << " ";
+        std::cout << "┃";
+        ConsoleHelper::gotoXY(startX, startY + 6); std::cout << "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━┛";
+
+        // [추가] 점수 출력
+        int scoreX = startX;
+        int scoreY = startY + 10;
+
+        showHighScores(HIGH_SCORE_LIMIT, scoreX, scoreY);
+        ConsoleHelper::setColor(Color::GRAY);
+
+        // 입력 위치로 커서 옮기기 (“Name : ” 뒤)
+        ConsoleHelper::gotoXY(startX + 10, startY + 3);
+
+
+        // 이전 입력 비우기
+        ConsoleHelper::flushInput();
+
+        // 닉네임 입력 시 커서 보이기
+        ConsoleHelper::cursorVisible(true);
+
+        std::string name;
+        if (!std::getline(std::cin, name) || name.empty()) {
+            name = "NONAME";
+        }
+
+        //입력 끝났으니 커서 다시 숨김
+        ConsoleHelper::cursorVisible(false);
+
+        // 텍스트 파일에 append
+        // 실행 파일이 있는 폴더에 score.txt가 계속 쌓이는 형태
+        std::ofstream out("score.txt", std::ios::app);
+        if (out.is_open()) {
+            // 예: HEOEUN<tab>12340 이런 형식으로 저장, 이름과 점수를 구별하는 구별자를 탭으로 함
+            out << name << "\t" << score << "\n";
+            out.close();
+        }
+
+        // [추가] 점수 저장하고 등수 최신화 해서 다시 출력
+        showHighScores(HIGH_SCORE_LIMIT, scoreX, scoreY, &name, score);
+
+        // 저장 후 간단히 안내 멘트
+        ConsoleHelper::gotoXY(startX, startY + 8);
+        ConsoleHelper::setColor(Color::GREEN);
+        std::cout << "Saved! Press any key to restart...";
+        ConsoleHelper::setColor(Color::BLACK);
+
+        _getch(); // 아무 키나 누르면 다음 게임으로
+    }
+
+    void Game::showHighScores(int maxCount, int startX, int startY,
+        const std::string* curName, int curScore) {
+        std::ifstream in("score.txt");
+        if (!in.is_open()) {
+            ConsoleHelper::gotoXY(startX, startY);
+            ConsoleHelper::setColor(Color::GRAY);
+            std::cout << "No scores yet.";
+            ConsoleHelper::setColor(Color::BLACK);
+            return;
+        }
+
+        struct HighScore {
+            std::string name;
+            int score;
+        };
+
+        std::vector<HighScore> scores;
+        std::string line;
+
+        while (std::getline(in, line)) {
+            if (line.empty()) continue;
+
+            // name \t score 형식 가정
+            size_t tabPos = line.rfind('\t');
+            if (tabPos == std::string::npos) continue;
+
+            std::string name = line.substr(0, tabPos);
+            std::string scoreStr = line.substr(tabPos + 1);
+
+            try {
+                int s = std::stoi(scoreStr);
+                scores.push_back({ name, s });
+            }
+            catch (...) {
+                // 숫자 파싱 안 되면 스킵
+                continue;
+            }
+        }
+
+        in.close();
+
+        if (scores.empty()) {
+            ConsoleHelper::gotoXY(startX, startY);
+            ConsoleHelper::setColor(Color::GRAY);
+            std::cout << "No scores yet.";
+            ConsoleHelper::setColor(Color::BLACK);
+            return;
+        }
+
+        // 점수 내림차순 정렬
+        sort(scores.begin(), scores.end(),
+            [](const HighScore& a, const HighScore& b) {
+                return a.score > b.score;
+            });
+
+        int count = maxCount;
+        if (count > static_cast<int>(scores.size())) {
+            count = static_cast<int>(scores.size());
+        }
+
+        // 헤더 출력
+        ConsoleHelper::setColor(Color::WHITE);
+        ConsoleHelper::gotoXY(startX, startY);
+        std::cout << "RANK  NAME               SCORE";
+
+        bool marked = false; // NEW! 는 한 줄만 표시
+
+        // 내용 출력
+        ConsoleHelper::setColor(Color::GRAY);
+        for (int i = 0; i < count; ++i) {
+            ConsoleHelper::gotoXY(startX, startY + 1 + i);
+
+            // 등수에 따라 색 결정
+            if (i == 0) {
+                ConsoleHelper::setColor(Color::DARK_YELLOW);  // 1등
+            }
+            else if (i == 1) {
+                ConsoleHelper::setColor(Color::WHITE);        // 2등
+            }
+            else if (i == 2) {
+                ConsoleHelper::setColor(Color::GRAY);         // 3등
+            }
+            else {
+                ConsoleHelper::setColor(Color::DARK_GRAY);    // 나머지
+            }
+
+            if (i + 1 < 10)
+                std::cout << (i + 1) << ". " << std::setw(3) << " ";
+            else
+                std::cout << std::setw(2) << (i + 1) << "." << std::setw(3) << " ";
+
+            std::string n = scores[i].name;
+            if (n.size() > 15) 
+                n = n.substr(0, 15);   // 너무 긴 이름은 잘라버리기
+            
+            std::cout << std::left << std::setw(17) << n;       // 이름 왼쪽 정렬
+            std::cout << std::right << std::setw(7) << scores[i].score; // 점수 오른쪽 정렬
+
+            bool isNew = (curName != nullptr && !marked &&
+                scores[i].name == *curName && scores[i].score == curScore);
+            if (isNew) {
+                std::cout << "  <- NEW!";
+                marked = true;
+            }
+        }
+
+        ConsoleHelper::setColor(Color::BLACK);
+    }
+
 }
