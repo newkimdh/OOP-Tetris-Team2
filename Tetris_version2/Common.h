@@ -13,9 +13,21 @@ namespace Tetris {
 
     enum class Color {
         BLACK = 0,
-        DARK_BLUE, DARK_GREEN, DARK_SKY_BLUE, DARK_RED, DARK_VIOLET, DARK_YELLOW,
-        GRAY, DARK_GRAY,
-        BLUE, GREEN, SKY_BLUE, RED, VIOLET, YELLOW, WHITE
+        DARK_BLUE = 1, 
+        DARK_GREEN = 2, 
+        DARK_SKY_BLUE = 3, 
+        DARK_RED = 4, 
+        DARK_VIOLET = 5, 
+        DARK_YELLOW = 6,
+        GRAY = 7, 
+        DARK_GRAY = 8,
+        BLUE = 9, 
+        GREEN = 10, 
+        SKY_BLUE = 11, 
+        RED = 12, 
+        VIOLET = 13, 
+        YELLOW = 14, 
+        WHITE = 15
     };
 
     struct StageConfig {

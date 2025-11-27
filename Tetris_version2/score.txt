@@ -1,0 +1,18 @@
+hello	230
+oh no	3
+hello2	250
+oh no2	2
+hello3	235
+hello3	237
+hello2	23
+oh no1	1
+hello4	235
+oh no7	1
+oh no5	5
+oh no9	8d	0
+ d	0
+                       	0
+d	0
+2	0
+new	453
+king	5435

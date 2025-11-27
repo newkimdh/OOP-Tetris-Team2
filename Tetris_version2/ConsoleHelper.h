@@ -8,5 +8,6 @@ namespace Tetris {
         static void setColor(Color color);
         static void cursorVisible(bool visible);
         static void clear();
+        static void flushInput();
     };
 }
