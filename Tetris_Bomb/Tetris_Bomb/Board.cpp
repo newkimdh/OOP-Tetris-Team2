@@ -100,5 +100,53 @@ namespace Tetris {
         return linesCleared;
     }
 
+    int Board::explode(int centerX, int centerY) {
+        int destroyedCount = 0;
 
+        // [Step 1] 폭발 이펙트 (빨간색으로 변함)
+        // 폭발 중심 3x3 영역 순회
+        for (int y = centerY - 1; y <= centerY + 1; ++y) {
+            for (int x = centerX - 1; x <= centerX + 1; ++x) {
+                // 범위 체크 (벽 제외)
+                if (x > 0 && x < BOARD_WIDTH - 1 && y >= 0 && y < BOARD_HEIGHT - 1) {
+                    if (grid[y][x] != 0) { // 블록이 있는 곳만
+                        ConsoleHelper::gotoXY(x * 2 + OFFSET_X, y + OFFSET_Y);
+                        ConsoleHelper::setColor(Color::RED); // 빨간색
+                        std::cout << "▣"; // 폭발 느낌의 꽉 찬 문자 (또는 ■)
+                    }
+                }
+            }
+        }
+        // 이펙트를 잠시 보여줌 (0.15초)
+        Sleep(250);
+
+        // [Step 2] 2차 이펙트: 회색 잔해 (□) - 요청하신 빈 상자
+        for (int y = centerY - 1; y <= centerY + 1; ++y) {
+            for (int x = centerX - 1; x <= centerX + 1; ++x) {
+                if (x > 0 && x < BOARD_WIDTH - 1 && y >= 0 && y < BOARD_HEIGHT - 1 && grid[y][x] != 0) {
+                    ConsoleHelper::gotoXY(x * 2 + OFFSET_X, y + OFFSET_Y);
+                    ConsoleHelper::setColor(Color::DARK_GRAY); // 타버린 느낌의 어두운 회색
+                    std::cout << "□";
+                }
+            }
+        }
+        Sleep(50);
+
+        // [Step 3] 실제 데이터 삭제 및 카운팅
+        for (int y = centerY - 1; y <= centerY + 1; ++y) {
+            for (int x = centerX - 1; x <= centerX + 1; ++x) {
+                if (x > 0 && x < BOARD_WIDTH - 1 && y >= 0 && y < BOARD_HEIGHT - 1) {
+                    if (grid[y][x] != 0) {
+                        destroyedCount++; // 점수 계산용 카운트
+                        grid[y][x] = 0;   // 빈 공간으로 만듦
+                    }
+                }
+            }
+        }
+
+        // [Step 4] 화면 갱신 (빈 공간 반영)
+        draw();
+
+        return destroyedCount; // 파괴한 개수 리턴
+    }
 }

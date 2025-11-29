@@ -23,5 +23,8 @@ namespace Tetris {
         bool checkCollision(const BlockBase& b, int nextX, int nextY, int nextAngle) const;
         void merge(const BlockBase& b);
         int processFullLines();
+
+        // [추가] 특정 좌표 주변을 비우는 explode 함수, 파괴된 블록 수 반환
+        int explode(int centerX, int centerY);
     };
 }
