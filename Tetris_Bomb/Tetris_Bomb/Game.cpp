@@ -440,7 +440,7 @@ namespace Tetris {
 
         // [수정] LINES 를 SCORE 와 같은 행에 배치
         ConsoleHelper::gotoXY(STAT_X + 7, 10); std::cout << "LINES";
-        ConsoleHelper::gotoXY(STAT_X + 7, 11); std::cout << stages[level].clearLineGoal - totalLines;
+        ConsoleHelper::gotoXY(STAT_X + 7, 11); std::cout << stages[level].clearLineGoal - totalLines << "         ";
 
         // [추가] 남은 폭탄 개수 표시
         ConsoleHelper::gotoXY(STAT_X - 1, 20); std::cout << "BOMBS";
