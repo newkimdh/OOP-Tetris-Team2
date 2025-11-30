@@ -20,10 +20,13 @@ namespace Tetris {
         bool canHold = true;    // true: 이번 턴에 사용 가능
         const int HIGH_SCORE_LIMIT = 10; // TOP N 점수 출력 (예: 5개)
 
-        //[추가] 폭탄 스킬 관련 변수
+        // [추가] 폭탄 스킬 관련 변수
         int bombCount;          // 남은 폭탄 사용 횟수
         int savedBlockForBomb;  // 폭탄 사용 시 잠시 대피시킨 원래 블록 타입 (-1이면 없음)
         const int BOMB_TYPE = 7;
+
+        // [추가] 게임 중에 강제 종료해서 레벨 선택 화면으로 돌아가기
+        bool shouldExitToTitle;
 
         std::vector<StageConfig> stages;
 
@@ -54,6 +57,9 @@ namespace Tetris {
 
         // [추가] 폭탄 사용 함수
         void useBomb();
+
+        // [추가] 일시정지 팝업 함수
+        int drawPausePopup();
 
     public:
         Game();

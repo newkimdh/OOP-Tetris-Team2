@@ -14,7 +14,7 @@
 namespace Tetris {
     Game::Game() 
         : level(0), score(0), totalLines(0), gameOver(false), 
-        bombCount(3), savedBlockForBomb(-1)  // [추가] 초기화
+        bombCount(3), savedBlockForBomb(-1), shouldExitToTitle(false)  // [추가] 초기화
     {
         srand(static_cast<unsigned>(time(NULL)));
         initStages();
@@ -44,6 +44,11 @@ namespace Tetris {
             while (!gameOver) {
                 handleInput();
 
+                // [수정 1] "나가기"가 눌렸으면 루프 즉시 탈출 (더 이상 진행 X)
+                if (shouldExitToTitle) {
+                    break;
+                }
+
                 //일시정지 로직
                 if (isPaused) {
                     Sleep(15);
@@ -55,8 +60,11 @@ namespace Tetris {
                 }
 
                 if (gameOver) {
-                    showGameOver();           // 기존 게임 오버 팝업
-                    promptNameAndSaveScore(); // [추가] 닉네임 입력 팝업
+                    // [수정 2] "타이틀로 나가기"가 아닐 때만(진짜 죽었을 때만) 결과창 띄우기
+                    if (!shouldExitToTitle) {
+                        showGameOver();           // 기존 게임 오버 팝업
+                        promptNameAndSaveScore(); // [추가] 닉네임 입력 팝업
+                    }
                     break;
                 }
 
@@ -79,9 +87,17 @@ namespace Tetris {
         score = 0;
         totalLines = 0;
         gameOver = false;
+
         // [추가] 게임 리셋 시 폭탄 3개 충전
         bombCount = 3;
         savedBlockForBomb = -1;
+
+        // [추가] 중요! 새 게임 시작할 때는 '나가기 상태'를 해제해야 함
+        shouldExitToTitle = false;
+
+        // (선택) 혹시 모르니 일시정지 상태도 확실히 꺼둠
+        isPaused = false;
+
     }
 
     int Game::makeNewBlockType() {
@@ -192,21 +208,42 @@ namespace Tetris {
                     return; // 입력 처리 완료
                 }
                 if (key == 'p' || key == 'P') {
-                    isPaused = !isPaused; // 상태 반전
+                    isPaused = true; // 없애도 되는데 이미 너무 많이 쓰여서 잔류
 
-                    if (isPaused) {
-                        // 일시정지 메시지 출력
-                        ConsoleHelper::gotoXY(OFFSET_X + 4, 10);
-                        ConsoleHelper::setColor(Color::RED);
-                        std::cout << " PAUSED ";
+                    // [수정] 팝업 함수 호출, 결과 반환
+                    int choice = drawPausePopup();
+                    
+                    // [선택 1] 나가기 Quit 선택 시
+                    if (choice == 1) {
+                        isPaused = false;          // 상태 초기화 
+                        shouldExitToTitle = true;   // 타이틀로 간다고 표시
+                        gameOver = true;           // 게임 루프 종료시키기
+                        return;     
                     }
-                    else {
-                        // 게임 화면 복구
 
-                        while (_kbhit()) { _getch(); }
-                        board.draw();
-                        currentBlock.draw();
-                    }
+                    // [선택 0] 계속하기(Resume) 선택 시 -> 기존 복구 로직 실행
+                    isPaused = false;
+                    ConsoleHelper::clear();
+                    board.draw();
+                    showStats();
+                    showNextBlockPreview();
+                    showHoldBlock();
+                    drawGhost(false);
+                    currentBlock.draw();
+                    isPaused = false;
+                    return;
+
+                    // 3. 복구
+                    ConsoleHelper::clear(); // pause 창 지우기
+
+                    board.draw();           // a. 모드
+                    showStats();            // b. 점수, 레벨, 폭탄
+                    showNextBlockPreview(); // c. 다음 블록 UI
+                    showHoldBlock();        // d. 홀드 UI
+
+                    drawGhost(false);
+                    currentBlock.draw();
+                    
                     return;
                 }
                 // [추가] 'b', 'B' 입력 시 폭탄 사용
@@ -610,7 +647,7 @@ namespace Tetris {
             ConsoleHelper::gotoXY(startX + 14, textY + 8); // 중앙 정렬 위치 조정
             if (showText) {
                 ConsoleHelper::setColor(Color::WHITE);
-                std::cout << "[ Please Press Any Key to start ]";
+                std::cout << "[ Please Press Any Key to Start ]";
                 ConsoleHelper::setColor(Color::WHITE);
                 // 잔상 지우기 (너비를 넉넉하게 70칸 정도로 잡음)
                 ConsoleHelper::setColor(Color::BLACK);
@@ -655,14 +692,111 @@ namespace Tetris {
     }
 
     void Game::showGameOver() {
-        ConsoleHelper::setColor(Color::RED);
-        ConsoleHelper::gotoXY(15, 8);  std::cout << "┏━━━━━━━━━━━━━━━━━━━━━━━━━━┓";
-        ConsoleHelper::gotoXY(15, 9);  std::cout << "┃**************************┃";
-        ConsoleHelper::gotoXY(15, 10); std::cout << "┃*       GAME OVER        *┃";
-        ConsoleHelper::gotoXY(15, 11); std::cout << "┃**************************┃";
-        ConsoleHelper::gotoXY(15, 12); std::cout << "┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛";
-        Sleep(3000);
-        system("cls");
+        // 1. GAME OVER 아트 정의
+        std::string gameOverArt[6] = {
+            "  ________                       ________                     ._.",
+            " /  _____/_____    _____   ____   \\_____ \\___   __ ___________| |",
+            "/   \\  ___\\__  \\  /     \\_/ __ \\   /   |   \\  \\/ // __ \\_  __ \\ |",
+            "\\    \\_\\  \\/ __ \\|  Y Y  \\  ___/  /    |    \\   /\\  ___/|  | \\/\\|",
+            " \\______  (____  /__|_|  /\\___  > \\_______  /\\_/  \\___  >__|   __",
+            "        \\/     \\/      \\/     \\/          \\/          \\/       \\/"
+        };
+
+        // 2. 박스 크기 계산 (전각 문자 고려)
+        // 아트의 가로 길이가 약 71칸입니다. 
+        // 테두리 '━' 하나가 2칸을 차지하므로, 박스 너비는 짝수여야 딱 맞습니다.
+        int boxWidth = 78;          // 넉넉하게 잡음 (짝수)
+        int boxHeight = 12;         // 높이
+
+        // 위치 조정
+        int startX = 15;
+        int startY = 7;
+
+        // 3. 배경 지우기 (검은색으로 채움)
+        ConsoleHelper::setColor(Color::BLACK);
+        for (int y = 0; y < boxHeight; ++y) {
+            ConsoleHelper::gotoXY(startX, startY + y);
+            // 공백으로 채워 뒤의 게임 화면 가리기
+            for (int x = 0; x < boxWidth; ++x) {
+                std::cout << " ";
+            }
+        }
+
+        // 4. 테두리 그리기 (요청하신 문자 적용)
+        ConsoleHelper::setColor(Color::WHITE); 
+
+        // [상단] ┏━━━━━┓
+        ConsoleHelper::gotoXY(startX, startY);
+        std::cout << "┏";
+        // 가운데 선: (전체너비 - 양쪽모서리4칸) / 2칸씩
+        for (int i = 0; i <= (boxWidth - 4); ++i) std::cout << "━";
+        std::cout << "┓";
+
+        // [중단] ┃     ┃
+        for (int i = 1; i < boxHeight - 1; ++i) {
+            ConsoleHelper::gotoXY(startX, startY + i);
+            std::cout << "┃";
+            // 오른쪽 벽 위치: startX + 전체너비 - 2칸(두께)
+            ConsoleHelper::gotoXY(startX + boxWidth - 2, startY + i);
+            std::cout << "┃";
+        }
+
+        // [하단] ┗━━━━━┛
+        ConsoleHelper::gotoXY(startX, startY + boxHeight - 1);
+        std::cout << "┗";
+        for (int i = 0; i <= (boxWidth - 4); ++i) std::cout << "━";
+        std::cout << "┛";
+
+        // 5. 아트 출력 (테두리 안쪽에 배치)
+        ConsoleHelper::setColor(Color::WHITE);
+        for (int i = 0; i < 6; ++i) {
+            // startX + 3 (약간의 여백)
+            ConsoleHelper::gotoXY(startX + 4, startY + 2 + i);
+            std::cout << gameOverArt[i];
+        }
+
+        // 6. 안내 메시지 변수 설정
+        ConsoleHelper::setColor(Color::GRAY);
+        std::string msg = "[ Press Enter to Continue ]";
+
+        // 메시지 중앙 좌표 계산
+        int msgX = startX + (boxWidth - msg.length()) / 2 ;
+        int msgY = startY + 9;
+
+        // 깜빡임 제어 변수
+        int tick = 0;
+        bool showText = true;
+
+        // 7. 루프: 키 입력 대기 + 깜빡임 애니메이션
+        while (true) {
+            // (1) 키 입력 확인 (Non-blocking)
+            if (_kbhit()) {
+                int key = _getch();
+                if (key == 13) { // Enter
+                    break; // 루프 탈출 -> 게임 종료 처리로 넘어감
+                }
+            }
+
+            // (2) 깜빡임 로직 (10틱 = 0.5초 주기)
+            if (tick % 10 == 0) {
+                ConsoleHelper::gotoXY(msgX, msgY);
+
+                if (showText) {
+                    // 글씨 보이기
+                    ConsoleHelper::setColor(Color::WHITE);
+                    std::cout << msg;
+                }
+                else {
+                    // 글씨 지우기 (공백으로 덮어쓰기)
+                    // 메시지 길이만큼 공백 출력
+                    for (int i = 0; i < msg.length(); ++i) std::cout << " ";
+                }
+                showText = !showText; // 상태 반전 (보임 <-> 안보임)
+            }
+
+            Sleep(50); // 0.05초 대기
+            tick = (tick + 1) % 30; // 오버플로우 방지
+        }
     }
    
     void Game::drawGhost(bool erase) {
@@ -771,13 +905,45 @@ namespace Tetris {
         // [추가] 점수 저장하고 등수 최신화 해서 다시 출력
         showHighScores(HIGH_SCORE_LIMIT, scoreX, scoreY, &name, score);
 
-        // 저장 후 간단히 안내 멘트
-        ConsoleHelper::gotoXY(startX, startY + 8);
-        ConsoleHelper::setColor(Color::GREEN);
-        std::cout << "Saved! Press any key to restart...";
-        ConsoleHelper::setColor(Color::BLACK);
+        // [수정] 저장 완료 멘트 깜빡임 애니메이션
+        std::string savedMsg = "[ Saved! Press Any Key to Restart ]";
 
-        _getch(); // 아무 키나 누르면 다음 게임으로
+        int msgX = startX;
+        int msgY = startY + 8;
+
+        int tick = 0;
+        bool showText = true;
+
+        // 키를 누를 때까지 무한 루프
+        while (true) {
+            // 1. 키 입력 확인 (안 멈춤)
+            if (_kbhit()) {
+                _getch(); // 입력된 키 소비 (버퍼 비우기)
+                break;    // 루프 탈출 -> 함수 종료 -> 게임 재시작
+            }
+
+            // 2. 깜빡임 로직 (0.5초 주기)
+            if (tick % 10 == 0) {
+                ConsoleHelper::gotoXY(msgX, msgY);
+
+                if (showText) {
+                    // 텍스트 보이기 (초록색)
+                    ConsoleHelper::setColor(Color::GREEN);
+                    std::cout << savedMsg;
+                }
+                else {
+                    // 텍스트 지우기 (공백)
+                    for (int i = 0; i < savedMsg.length(); ++i) std::cout << " ";
+                }
+                showText = !showText; // 상태 반전
+            }
+
+            Sleep(50);
+            tick = (tick + 1) % 30;
+        }
+
+        // 색상 초기화
+        ConsoleHelper::setColor(Color::BLACK);
     }
 
     void Game::showHighScores(int maxCount, int startX, int startY,
@@ -911,6 +1077,79 @@ namespace Tetris {
             // 6. 폭탄 그리기
             drawGhost(false);
             currentBlock.draw();
+        }
+    }
+
+    // 0: Resume (계속), 1: Quit (나가기) 를 리턴함
+    int Game::drawPausePopup() {
+        ConsoleHelper::clear();
+
+        // 1. ASCII 아트 출력
+        std::string pauseArt[5] = {
+            "___________   __ __  ______ ____  ",
+            "\\____ \\__  \\ |  |  \\/  ___// __ \\ ",
+            "|  |_> > __ \\|  |  /\\___ \\\\  ___/ ",
+            "|   __(____  /____//____  >\\___  > ",
+            "|__|       \\/           \\/     \\/ "
+        };
+
+        int startX = 18;
+        int startY = 7; // 메뉴 공간 확보를 위해 조금 올림
+
+        ConsoleHelper::setColor(Color::RED);
+        for (int i = 0; i < 5; ++i) {
+            ConsoleHelper::gotoXY(startX, startY + i);
+            std::cout << pauseArt[i];
+        }
+
+        // 2. 메뉴 선택 로직
+        int menuIndex = 0; // 0: Resume, 1: Quit
+        int textX = startX + 10;
+        int textY = startY + 7;
+
+        while (true) {
+            // 메뉴 텍스트 그리기 (선택된 것만 강조)
+            ConsoleHelper::gotoXY(textX, textY);
+            if (menuIndex == 0) {
+                ConsoleHelper::setColor(Color::WHITE); // 선택됨 (흰색 & 화살표)
+                std::cout << "▶ [ RESUME ]";
+            }
+            else {
+                ConsoleHelper::setColor(Color::GRAY);  // 안 선택됨 (회색)
+                std::cout << "  [ RESUME ]";
+            }
+
+            ConsoleHelper::gotoXY(textX, textY + 2);
+            if (menuIndex == 1) {
+                ConsoleHelper::setColor(Color::WHITE);
+                std::cout << "▶ [ QUIT ]";
+            }
+            else {
+                ConsoleHelper::setColor(Color::GRAY);
+                std::cout << "  [ QUIT ]";
+            }
+
+            // 키 입력 대기
+            int key = _getch();
+
+            // 방향키 처리
+            if (key == 224) {
+                key = _getch(); // 실제 키 코드 읽기
+                if (key == 72) { // UP
+                    menuIndex = 0;
+                }
+                else if (key == 80) { // DOWN
+                    menuIndex = 1;
+                }
+            }
+            // 엔터키(13) 또는 스페이스바(32) -> 선택 완료
+            else if (key == 13 || key == 32) {
+                return menuIndex; // 0 또는 1 리턴
+            }
+            // P키 -> Resume과 동일 취급
+            else if (key == 'p' || key == 'P') {
+                return 0; // Resume
+            }
         }
     }
 }
