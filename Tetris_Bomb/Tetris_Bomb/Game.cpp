@@ -464,24 +464,82 @@ namespace Tetris {
     }
 
     void Game::showStats() {
-        static const int STAT_X = 35;
+        static const int STAT_X = 77; // 기준 X좌표 (NEXT 블록과 라인 맞춤)
+
+        // ====================================================
+        // 1. STATS 박스 (STAGE, SCORE, LINES 통합)
+        // ====================================================
+        int statsY = 8;     // 시작 Y좌표
+        int boxWidth = 24;  // 박스 너비 (내용물에 맞춰 넉넉하게)
+        int boxHeight = 7;  // 높이
+
         ConsoleHelper::setColor(Color::GRAY);
 
-        ConsoleHelper::gotoXY(STAT_X - 1, 8); std::cout << "STAGE";
+        // [테두리 그리기]
+        // 상단: ┏━━ STATS ━━┓
+        ConsoleHelper::gotoXY(STAT_X, statsY);
+        std::cout << "┏━━━━━━ STAT ━━━━━━┓";
+
+        // 중단 (몸통)
+        for (int i = 1; i < boxHeight; ++i) {
+            ConsoleHelper::gotoXY(STAT_X, statsY + i);
+            std::cout << "┃                  ┃";
+        }
+
+        // 하단: ┗━━━━━━━━━━━━┛
+        ConsoleHelper::gotoXY(STAT_X, statsY + boxHeight);
+        std::cout << "┗━━━━━━━━━━━━━━━━━━┛";
+
+        // [내용 출력]
+        // 1) STAGE
+        ConsoleHelper::gotoXY(STAT_X + 3, statsY + 2);
+        ConsoleHelper::setColor(Color::GRAY);
+        std::cout << "STAGE";
+
+        ConsoleHelper::gotoXY(STAT_X + 11, statsY + 2);
         ConsoleHelper::setColor(static_cast<Color>((level % 6) + 1));
-        ConsoleHelper::gotoXY(STAT_X + 5, 8); std::cout << level + 1;
+        std::cout << std::setw(2) << level + 1; // 2자리수 정렬
+
+        // 2) 구분선 (선택사항, 깔끔함을 위해 공백 유지)
+
+        // 3) SCORE & LINES 헤더
+        ConsoleHelper::setColor(Color::GRAY);
+        ConsoleHelper::gotoXY(STAT_X + 3, statsY + 4);
+        std::cout << "SCORE    LINES";
+
+        // 4) SCORE & LINES 값
+        ConsoleHelper::setColor(Color::WHITE);
+        ConsoleHelper::gotoXY(STAT_X + 3, statsY + 5);
+        std::cout << std::setw(5) << score;
+
+        ConsoleHelper::gotoXY(STAT_X + 12, statsY + 5);
+        std::cout << std::setw(5) << (stages[level].clearLineGoal - totalLines) << "  "; // 잔상 제거용 공백
+
+        // ====================================================
+        // 2. BOMB 박스 (폭탄 스킬)
+        // ====================================================
+        int bombY = statsY + boxHeight + 2; // STATS 박스 한 칸 아래 (Y=16)
+        int bombHeight = 4; // 높이
+
         ConsoleHelper::setColor(Color::GRAY);
 
-        ConsoleHelper::gotoXY(STAT_X - 1, 10); std::cout << "SCORE";
-        ConsoleHelper::gotoXY(STAT_X - 1, 11); std::cout << score;
+        // [테두리 그리기]
+        // 상단: ┏━━ BOMB ━━━┓
+        ConsoleHelper::gotoXY(STAT_X, bombY);
+        std::cout << "┏━━ BOMBS ━━┓";
 
-        // [수정] LINES 를 SCORE 와 같은 행에 배치
-        ConsoleHelper::gotoXY(STAT_X + 7, 10); std::cout << "LINES";
-        ConsoleHelper::gotoXY(STAT_X + 7, 11); std::cout << stages[level].clearLineGoal - totalLines << "         ";
+        // 중단
+        for (int i = 1; i < bombHeight - 2; ++i) {
+            ConsoleHelper::gotoXY(STAT_X, bombY + i);
+            std::cout << "┃           ┃";
+        }
 
-        // [추가] 남은 폭탄 개수 표시
-        ConsoleHelper::gotoXY(STAT_X - 1, 20); std::cout << "BOMBS";
-        ConsoleHelper::gotoXY(STAT_X - 1, 21);
+        // 하단
+        ConsoleHelper::gotoXY(STAT_X, bombY + bombHeight - 2);
+        std::cout << "┗━━━━━━━━━━━┛";
+
+        // [내용 출력]
+        ConsoleHelper::gotoXY(STAT_X + 4, bombY + 1); // 중앙 정렬 느낌
         ConsoleHelper::setColor(Color::RED);
         for (int i = 0; i < 3; ++i) {
             if (i < bombCount) std::cout << "● ";
@@ -490,45 +548,59 @@ namespace Tetris {
     }
 
     void Game::showNextBlockPreview() {
-        ConsoleHelper::setColor(static_cast<Color>((level + 1) % 6 + 1));
-        for (int i = 1; i < 7; i++) {
-            ConsoleHelper::gotoXY(33, i);
-            for (int j = 0; j < 6; j++) {
-                if (i == 1 || i == 6 || j == 0 || j == 5) std::cout << " ■";
-                else std::cout << "  ";
-            }
+        // [수정] 보드 오른쪽(X=76) 배치
+        int startX = 77;
+        int startY = 1; // 보드 맨 윗줄과 맞춤
+
+        // 1. UI 틀 그리기 (NEXT 스타일)
+        ConsoleHelper::setColor(Color::GRAY);
+        ConsoleHelper::gotoXY(startX, startY);     std::cout << "┏━━ NEXT ━━┓";
+        for (int i = 0; i < 4; i++) {
+            ConsoleHelper::gotoXY(startX, startY + 1 + i); std::cout << "┃          ┃";
         }
+        ConsoleHelper::gotoXY(startX, startY + 5); std::cout << "┗━━━━━━━━━━┛";
+
+        // 2. 블록 그리기
+        // 박스 내부 좌표 계산 (틀 두께 고려)
+        int blockDrawX = startX + 3; // 박스 안쪽 X
+        int blockDrawY = startY + 1; // 박스 안쪽 Y
 
         ShapeBlock temp;
         temp.spawn(nextBlockType);
-        temp.x = 16;
-        temp.y = 1;
 
+        // 블록 모양 데이터 가져오기
         const auto& shape = ShapeRepository::getShape(nextBlockType)[0];
         ConsoleHelper::setColor(ShapeRepository::getColorForType(nextBlockType));
+
         for (int r = 0; r < 4; ++r) {
             for (int c = 0; c < 4; ++c) {
+                // 박스 내부 좌표 기준으로 그리기
+                ConsoleHelper::gotoXY((r * 2) + blockDrawX, c + blockDrawY);
                 if (shape[c][r] == 1) {
-                    ConsoleHelper::gotoXY((r + temp.x) * 2 + OFFSET_X, c + temp.y + OFFSET_Y);
                     std::cout << "■";
+                }
+                else {
+                    std::cout << "  ";
                 }
             }
         }
     }
 
     void Game::selectLevel() {
+        int boxX = 42;
+
         ConsoleHelper::clear();
         ConsoleHelper::setColor(Color::GRAY);
-        ConsoleHelper::gotoXY(10, 7);  std::cout << "┏━━━━━━━━━<GAME KEY>━━━━━━━━━┓";
-        ConsoleHelper::gotoXY(10, 8);  std::cout << "┃ UP   : Rotate Block        ┃";
-        ConsoleHelper::gotoXY(10, 9);  std::cout << "┃ DOWN : Move One-Step Down  ┃";
-        ConsoleHelper::gotoXY(10, 10); std::cout << "┃ SPACE: Move Bottom Down    ┃";
-        ConsoleHelper::gotoXY(10, 11); std::cout << "┃ LEFT : Move Left           ┃";
-        ConsoleHelper::gotoXY(10, 12); std::cout << "┃ RIGHT: Move Right          ┃";
-        ConsoleHelper::gotoXY(10, 13); std::cout << "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛";
+        ConsoleHelper::gotoXY(boxX, 7);  std::cout << "┏━━━━━━━━━<GAME KEY>━━━━━━━━━┓";
+        ConsoleHelper::gotoXY(boxX, 8);  std::cout << "┃ UP   : Rotate Block        ┃";
+        ConsoleHelper::gotoXY(boxX, 9);  std::cout << "┃ DOWN : Move One-Step Down  ┃";
+        ConsoleHelper::gotoXY(boxX, 10); std::cout << "┃ SPACE: Move Bottom Down    ┃";
+        ConsoleHelper::gotoXY(boxX, 11); std::cout << "┃ LEFT : Move Left           ┃";
+        ConsoleHelper::gotoXY(boxX, 12); std::cout << "┃ RIGHT: Move Right          ┃";
+        ConsoleHelper::gotoXY(boxX, 13); std::cout << "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛";
 
         // [추가] TOP N 점수판 출력
-        int scoreX = 10;
+        int scoreX = boxX;
         int scoreY = 16;   // GAME KEY 보다 아래
         showHighScores(HIGH_SCORE_LIMIT, scoreX, scoreY);
         ConsoleHelper::setColor(Color::GRAY);
@@ -544,14 +616,14 @@ namespace Tetris {
 
         while (selectedLevel < 1 || selectedLevel > 8) {
             ConsoleHelper::setColor(Color::GRAY);
-            ConsoleHelper::gotoXY(10, 3);
+            ConsoleHelper::gotoXY(boxX, 3);
             std::cout << "Select Start level[1-8]: ";
 
             // 이전 입력 자국 지우기
             ConsoleHelper::setColor(Color::GRAY);
-            ConsoleHelper::gotoXY(10 + 26, 3);  // "Select Start level [1-8]: " 길이 기준
+            ConsoleHelper::gotoXY(boxX + 26, 3);  // "Select Start level [1-8]: " 길이 기준
             std::cout << "                                                                         ";
-            ConsoleHelper::gotoXY(10 + 26, 3);
+            ConsoleHelper::gotoXY(boxX + 26, 3);
 
             // 실제 입력
             if (!std::getline(std::cin, input) || input.empty()) {
@@ -565,7 +637,7 @@ namespace Tetris {
             }
             else {
                 // 잘못된 입력에 대해서 안내 문구 표시
-                ConsoleHelper::gotoXY(10, 4);
+                ConsoleHelper::gotoXY(boxX, 4);
                 ConsoleHelper::setColor(Color::RED);
                 std::cout << "Please enter a number between 1 and 8.";
                 ConsoleHelper::setColor(Color::GRAY);
@@ -580,7 +652,7 @@ namespace Tetris {
     void Game::showLogo() {
         ConsoleHelper::cursorVisible(false);
 
-        int startX = 15;  // 왼쪽 여백
+        int startX = 28;  // 왼쪽 여백
         int startY = 3;  // 시작 높이 (아트가 커서 조금 위로 올림)
 
         // ==========================================================
@@ -600,7 +672,7 @@ namespace Tetris {
 
         for (int i = 0; i < 6; i++) {
             // 중앙 정렬을 위해 약간 오른쪽(startX + 12)에서 출력
-            ConsoleHelper::gotoXY(startX + 12, startY + i);
+            ConsoleHelper::gotoXY(startX + 13, startY + i);
             std::cout << bombArt[i];
         }
 
@@ -644,7 +716,7 @@ namespace Tetris {
             }
 
             // 깜빡임 로직
-            ConsoleHelper::gotoXY(startX + 14, textY + 8); // 중앙 정렬 위치 조정
+            ConsoleHelper::gotoXY(startX + 15, textY + 9); // 중앙 정렬 위치 조정
             if (showText) {
                 ConsoleHelper::setColor(Color::WHITE);
                 std::cout << "[ Please Press Any Key to Start ]";
@@ -666,7 +738,7 @@ namespace Tetris {
                 // 장식용 랜덤 블록 그리기
                 for (int k = 0; k < 4; ++k) {
                     int rType = rand() % 7;
-                    int rX = 20 + k * 15;
+                    int rX = startX + 5  + k * 16;
                     int rY = animBaseY;
 
                     const auto& shape = ShapeRepository::getShape(rType)[0];
@@ -709,8 +781,8 @@ namespace Tetris {
         int boxHeight = 12;         // 높이
 
         // 위치 조정
-        int startX = 15;
-        int startY = 7;
+        int startX = 21;
+        int startY = 9;
 
         // 3. 배경 지우기 (검은색으로 채움)
         ConsoleHelper::setColor(Color::BLACK);
@@ -817,43 +889,46 @@ namespace Tetris {
     // [Game 클래스 내부 private 함수로 추가]
 
     void Game::showHoldBlock() {
-        // 1. UI 틀 그리기 (왼쪽 상단 좌표: x=2, y=1)
-        ConsoleHelper::setColor(Color::GRAY);
-        ConsoleHelper::gotoXY(34, 13); std::cout << "┏━━ HOLD ━━┓";
-        for (int i = 0; i < 4; i++) {
-            ConsoleHelper::gotoXY(34, 14 + i); std::cout << "┃          ┃";
-        }
-        ConsoleHelper::gotoXY(34, 18); std::cout << "┗━━━━━━━━━━┛";
+    // [수정] 보드 왼쪽(X=32) 배치 (보드가 48에서 시작하므로 그 왼쪽)
+    int startX = 32;
+    int startY = 1; // NEXT 블록과 높이 맞춤 (기존 13에서 1로 상향)
 
-        // 2. 저장된 블록이 없으면 리턴
-        if (heldBlockType == -1) return;
+    // 1. UI 틀 그리기
+    ConsoleHelper::setColor(Color::GRAY);
+    ConsoleHelper::gotoXY(startX, startY);     std::cout << "┏━━ HOLD ━━┓";
+    for (int i = 0; i < 4; i++) {
+        ConsoleHelper::gotoXY(startX, startY + 1 + i); std::cout << "┃          ┃";
+    }
+    ConsoleHelper::gotoXY(startX, startY + 5); std::cout << "┗━━━━━━━━━━┛";
 
-        // 3. 저장된 블록 그리기
-        // 좌표 계산: UI 박스 내부 (x=4, y=3 정도)
-        int startX = 37;
-        int startY = 14;
+    // 2. 저장된 블록이 없으면 리턴
+    if (heldBlockType == -1) return;
 
-        const auto& shape = ShapeRepository::getShape(heldBlockType)[0]; // 기본 각도(0)로 표시
-        ConsoleHelper::setColor(ShapeRepository::getColorForType(heldBlockType));
+    // 3. 저장된 블록 그리기
+    int blockDrawX = startX + 3;
+    int blockDrawY = startY + 1;
 
-        for (int r = 0; r < 4; ++r) {
-            for (int c = 0; c < 4; ++c) {
-                ConsoleHelper::gotoXY((r * 2) + startX, c + startY);
-                if (shape[c][r] == 1) {
-                    std::cout << "■";
-                }
-                else {
-                    std::cout << "  ";
-                }
+    const auto& shape = ShapeRepository::getShape(heldBlockType)[0];
+    ConsoleHelper::setColor(ShapeRepository::getColorForType(heldBlockType));
+
+    for (int r = 0; r < 4; ++r) {
+        for (int c = 0; c < 4; ++c) {
+            ConsoleHelper::gotoXY((r * 2) + blockDrawX, c + blockDrawY);
+            if (shape[c][r] == 1) {
+                std::cout << "■";
+            }
+            else {
+                std::cout << "  ";
             }
         }
     }
+}
 
     void Game::promptNameAndSaveScore() {
         ConsoleHelper::clear();              // 화면 싹 지우고
         ConsoleHelper::setColor(Color::GRAY);
 
-        int startX = 15;
+        int startX = 42;
         int startY = 4;
 
         // 간단한 팝업 박스 (ASCII로)
@@ -886,8 +961,28 @@ namespace Tetris {
         ConsoleHelper::cursorVisible(true);
 
         std::string name;
-        if (!std::getline(std::cin, name) || name.empty()) {
-            name = "NONAME";
+        int maxLength = 16;
+        while (true) {
+            int key = _getch();
+
+            // 1. 엔터 키 (입력 완료)
+            if (key == 13) {
+                if (name.empty()) name = "NONAME"; // 빈칸이면 기본값
+                break;
+            }
+            // 2. 백스페이스 (지우기)
+            else if (key == 8) {
+                if (!name.empty()) {
+                    name.pop_back();      // 글자 삭제
+                    std::cout << "\b \b"; // 화면에서도 지우기 (뒤로가서 공백찍고 다시 뒤로)
+                }
+            }
+            // 3. 일반 문자 (영어, 숫자 등)
+            // 특수문자나 한글은 처리가 복잡하므로 여기선 제외하거나 단순 처리
+            else if (name.length() < maxLength && key >= 32 && key <= 126) {
+                name += (char)key;
+                std::cout << (char)key;
+            }
         }
 
         //입력 끝났으니 커서 다시 숨김
@@ -1093,8 +1188,8 @@ namespace Tetris {
             "|__|       \\/           \\/     \\/ "
         };
 
-        int startX = 18;
-        int startY = 7; // 메뉴 공간 확보를 위해 조금 올림
+        int startX = 42;
+        int startY = 10; // 메뉴 공간 확보를 위해 조금 올림
 
         ConsoleHelper::setColor(Color::RED);
         for (int i = 0; i < 5; ++i) {

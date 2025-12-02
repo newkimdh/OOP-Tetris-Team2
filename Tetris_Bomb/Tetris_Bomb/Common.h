@@ -3,7 +3,7 @@ namespace Tetris {
     // 상수들
     constexpr int BOARD_HEIGHT = 21;
     constexpr int BOARD_WIDTH = 14;
-    constexpr int OFFSET_X = 5;
+    constexpr int OFFSET_X = 47;
     constexpr int OFFSET_Y = 1;
 
     // 열거형들
