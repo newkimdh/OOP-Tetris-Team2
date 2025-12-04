@@ -633,21 +633,21 @@ namespace Tetris {
         ConsoleHelper::setColor(Color::GRAY);
 
         // 1. GAME KEY 설명 박스 (높이 1칸 늘림)
-        ConsoleHelper::gotoXY(boxX-5, boxY);     std::cout << "┏━━━━━━━━━━━━━━━━━━━ <GAME KEY> ━━━━━━━━━━━━━━━━━┓";
+        ConsoleHelper::gotoXY(boxX, boxY);     std::cout << "┏━━━━━━━━━━━━━━ <GAME KEY> ━━━━━━━━━━━━━┓";
 
-        ConsoleHelper::gotoXY(boxX-5, boxY + 1); std::cout << "┃             UP    : Rotate Block               ┃";
-        ConsoleHelper::gotoXY(boxX-5, boxY + 2); std::cout << "┃           DOWN  : Move One-Step Down           ┃";
-        ConsoleHelper::gotoXY(boxX-5, boxY + 3); std::cout << "┃           SPACE : Move Bottom Down             ┃";
-        ConsoleHelper::gotoXY(boxX-5, boxY + 4); std::cout << "┃             LEFT  : Move Left                  ┃";
-        ConsoleHelper::gotoXY(boxX-5, boxY + 5); std::cout << "┃             RIGHT : Move Right                 ┃";
-        ConsoleHelper::gotoXY(boxX-5, boxY + 6); std::cout << "┃             B     : Bomb Skill                 ┃";
-        ConsoleHelper::gotoXY(boxX-5, boxY + 7); std::cout << "┃             P     : Pause / Menu               ┃";
+        ConsoleHelper::gotoXY(boxX, boxY + 1); std::cout << "┃     UP    : Rotate Block              ┃";
+        ConsoleHelper::gotoXY(boxX, boxY + 2); std::cout << "┃     DOWN  : Move One-Step Down        ┃";
+        ConsoleHelper::gotoXY(boxX, boxY + 3); std::cout << "┃     SPACE : Move Bottom Down          ┃";
+        ConsoleHelper::gotoXY(boxX, boxY + 4); std::cout << "┃     LEFT  : Move Left                 ┃";
+        ConsoleHelper::gotoXY(boxX, boxY + 5); std::cout << "┃     RIGHT : Move Right                ┃";
+        ConsoleHelper::gotoXY(boxX, boxY + 6); std::cout << "┃     B     : Bomb Skill                ┃";
+        ConsoleHelper::gotoXY(boxX, boxY + 7); std::cout << "┃     P     : Pause / Menu              ┃";
 
         // [추가] 종료 키 설명
-        ConsoleHelper::gotoXY(boxX-5, boxY + 8); std::cout << "┃             Q     : Quit Game                  ┃";
+        ConsoleHelper::gotoXY(boxX, boxY + 8); std::cout << "┃     Q     : Quit Game                 ┃";
 
         // 바닥 테두리 한 칸 아래로 이동 (boxY + 9)
-        ConsoleHelper::gotoXY(boxX-5, boxY + 9); std::cout << "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛";
+        ConsoleHelper::gotoXY(boxX, boxY + 9); std::cout << "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛";
 
         // 2. TOP N 점수판 (위치 조정)
         int scoreX = boxX + 5;
