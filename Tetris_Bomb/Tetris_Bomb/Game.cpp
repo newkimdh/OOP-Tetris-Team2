@@ -27,6 +27,43 @@ namespace Tetris {
         while (true) {
             resetGame();
             selectLevel();
+
+            // [추가] 레벨 선택에서 'Q'를 눌러 -1이 설정되었다면 게임 종료
+            if (level == -1) {
+                ConsoleHelper::clear();
+
+                // 1. Good Bye 아트 정의 (이스케이프 문자 처리 완료)
+                std::string goodByeArt[6] = {
+                    "  ________                   .___ __________             ._.",
+                    " /  _____/  ____   ____   __| _/ \\______   \\___.__. ____| |",
+                    "/   \\  ___ /  _ \\ /  _ \\ / __ |   |    |  _<   |  |/ __ \\ |",
+                    "\\    \\_\\  (  <_> |  <_> ) /_/ |   |    |   \\\\___  \\  ___/\\|",
+                    " \\______  /\\____/ \\____/\\____ |   |______  // ____|\\___  >_",
+                    "        \\/                   \\/          \\/ \\/         \\/\\/"
+                };
+
+                // 2. 중앙 정렬 좌표 계산
+                // 아트 너비: 약 67칸
+                // 화면 너비: 120칸
+                // 시작 X: (120 - 67) / 2 = 26
+                int startX = 26;
+                int startY = 10; // 화면 중앙 높이
+
+                // 3. 출력 (노란색으로 예쁘게)
+                ConsoleHelper::setColor(Color::WHITE);
+                for (int i = 0; i < 6; ++i) {
+                    ConsoleHelper::gotoXY(startX, startY + i);
+                    std::cout << goodByeArt[i];
+                }
+
+                // 4. 잠시 보여주고 종료
+                Sleep(2000); // 2초 대기
+
+                // 색상 초기화 및 커서 아래로 이동 (콘솔창 닫힐 때 깔끔하게)
+                ConsoleHelper::setColor(Color::WHITE);
+                ConsoleHelper::gotoXY(0, 38);
+                break; // 프로그램 종료
+            }
             ConsoleHelper::clear();
 
             board.setLevel(level);
@@ -587,66 +624,88 @@ namespace Tetris {
     }
 
     void Game::selectLevel() {
-        int boxX = 42;
-
         ConsoleHelper::clear();
-        ConsoleHelper::setColor(Color::GRAY);
-        ConsoleHelper::gotoXY(boxX, 7);  std::cout << "┏━━━━━━━━━<GAME KEY>━━━━━━━━━┓";
-        ConsoleHelper::gotoXY(boxX, 8);  std::cout << "┃ UP   : Rotate Block        ┃";
-        ConsoleHelper::gotoXY(boxX, 9);  std::cout << "┃ DOWN : Move One-Step Down  ┃";
-        ConsoleHelper::gotoXY(boxX, 10); std::cout << "┃ SPACE: Move Bottom Down    ┃";
-        ConsoleHelper::gotoXY(boxX, 11); std::cout << "┃ LEFT : Move Left           ┃";
-        ConsoleHelper::gotoXY(boxX, 12); std::cout << "┃ RIGHT: Move Right          ┃";
-        ConsoleHelper::gotoXY(boxX, 13); std::cout << "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛";
 
-        // [추가] TOP N 점수판 출력
-        int scoreX = boxX;
-        int scoreY = 16;   // GAME KEY 보다 아래
+        // [좌표 계산]
+        int boxX = 42;
+        int boxY = 6;
+
+        ConsoleHelper::setColor(Color::GRAY);
+
+        // 1. GAME KEY 설명 박스 (높이 1칸 늘림)
+        ConsoleHelper::gotoXY(boxX-5, boxY);     std::cout << "┏━━━━━━━━━━━━━━━━━━━ <GAME KEY> ━━━━━━━━━━━━━━━━━┓";
+
+        ConsoleHelper::gotoXY(boxX-5, boxY + 1); std::cout << "┃             UP    : Rotate Block               ┃";
+        ConsoleHelper::gotoXY(boxX-5, boxY + 2); std::cout << "┃           DOWN  : Move One-Step Down           ┃";
+        ConsoleHelper::gotoXY(boxX-5, boxY + 3); std::cout << "┃           SPACE : Move Bottom Down             ┃";
+        ConsoleHelper::gotoXY(boxX-5, boxY + 4); std::cout << "┃             LEFT  : Move Left                  ┃";
+        ConsoleHelper::gotoXY(boxX-5, boxY + 5); std::cout << "┃             RIGHT : Move Right                 ┃";
+        ConsoleHelper::gotoXY(boxX-5, boxY + 6); std::cout << "┃             B     : Bomb Skill                 ┃";
+        ConsoleHelper::gotoXY(boxX-5, boxY + 7); std::cout << "┃             P     : Pause / Menu               ┃";
+
+        // [추가] 종료 키 설명
+        ConsoleHelper::gotoXY(boxX-5, boxY + 8); std::cout << "┃             Q     : Quit Game                  ┃";
+
+        // 바닥 테두리 한 칸 아래로 이동 (boxY + 9)
+        ConsoleHelper::gotoXY(boxX-5, boxY + 9); std::cout << "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛";
+
+        // 2. TOP N 점수판 (위치 조정)
+        int scoreX = boxX + 5;
+        int scoreY = boxY + 12; // 박스가 커졌으니 점수판도 한 칸 아래로(11 -> 12)
+
         showHighScores(HIGH_SCORE_LIMIT, scoreX, scoreY);
         ConsoleHelper::setColor(Color::GRAY);
 
-        // 이전 키 입력/엔터 싹 비우기
+        // 3. 입력 받기
         ConsoleHelper::flushInput();
 
         std::string input;
         int selectedLevel = -1;
 
-        // 레벨 입력 동안 커서 보이게
+        // 안내 문구
+        int inputX = 42; // "Select Level [1-8] or [Q]uit: " 길이 고려해서 조정
+        int inputY = 3;
+
         ConsoleHelper::cursorVisible(true);
 
-        while (selectedLevel < 1 || selectedLevel > 8) {
+        while (true) { // 무한 루프로 변경하여 유효 입력까지 대기
             ConsoleHelper::setColor(Color::GRAY);
-            ConsoleHelper::gotoXY(boxX, 3);
-            std::cout << "Select Start level[1-8]: ";
+            ConsoleHelper::gotoXY(inputX, inputY);
+            std::cout << "Select Level [1-8] or [Q]uit: "; // 문구 변경
 
-            // 이전 입력 자국 지우기
+            // 입력창 지우기
             ConsoleHelper::setColor(Color::GRAY);
-            ConsoleHelper::gotoXY(boxX + 26, 3);  // "Select Start level [1-8]: " 길이 기준
-            std::cout << "                                                                         ";
-            ConsoleHelper::gotoXY(boxX + 26, 3);
+            ConsoleHelper::gotoXY(inputX + 30, inputY);
+            std::cout << "          ";
+            ConsoleHelper::gotoXY(inputX + 30, inputY);
 
-            // 실제 입력
+            // 입력 받기
             if (!std::getline(std::cin, input) || input.empty()) {
-                // 입력 실패시 다시 시도
                 ConsoleHelper::flushInput();
                 continue;
             }
-            
+
+            // [종료 체크] Q 또는 q 입력 시
+            if (input == "q" || input == "Q") {
+                level = -1; // 종료 신호로 -1 사용
+                break;      // 루프 탈출
+            }
+
+            // [레벨 체크] 1~8 숫자 입력 시
             if (input.size() == 1 && input.at(0) >= '1' && input.at(0) <= '8') {
                 selectedLevel = input.at(0) - '0';
+                level = selectedLevel - 1; // 실제 레벨(0~7) 설정
+                break; // 루프 탈출
             }
-            else {
-                // 잘못된 입력에 대해서 안내 문구 표시
-                ConsoleHelper::gotoXY(boxX, 4);
-                ConsoleHelper::setColor(Color::RED);
-                std::cout << "Please enter a number between 1 and 8.";
-                ConsoleHelper::setColor(Color::GRAY);
-            }
-        }
-        // 레벨 확정 후 커서 다시 숨기기
-        ConsoleHelper::cursorVisible(false);
 
-        level = selectedLevel - 1;
+            // 잘못된 입력
+            ConsoleHelper::gotoXY(41, inputY + 1);
+            ConsoleHelper::setColor(Color::RED);
+            std::cout << "Please enter 1-8 or Q to quit.";
+            ConsoleHelper::setColor(Color::GRAY);
+        }
+
+        ConsoleHelper::cursorVisible(false);
     }
 
     void Game::showLogo() {
