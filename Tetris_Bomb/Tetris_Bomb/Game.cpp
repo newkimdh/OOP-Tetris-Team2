@@ -2,16 +2,40 @@
 #include "ConsoleHelper.h"
 #include "ShapeRepository.h"
 #include <iostream>
-#include <conio.h>
-#include <ctime>
-#include <windows.h> // Sleep
-#include <fstream>   // [추가] 파일 저장
-#include <cstring>   // [추가] strcspn, strlen 등 사용
-#include <string>
-#include <iomanip>   // setw, left, right
-#include <algorithm>
+#include <conio.h>   // _getch, _kbhit (입력 대기용)
+#include <ctime>     // time           
+#include <windows.h> // Sleep          (대기 애니메이션용)
+#include <string>    // string         (문자열 처리용)
+
+/*
+ * 파일명: Game.cpp
+ * 설명: Tetris 게임의 핵심 로직을 담당하는 파일입니다.
+ * 게임 흐름 제어, 키 입력 처리, 블록 이동 및 충돌 계산 등이 포함됩니다.
+ * (화면 출력 관련 코드는 Game_UI.cpp에 있습니다.)
+ 
+  ===========================================================================
+    [Game.cpp 함수 목차 (Function Index)]
+
+    1. Game::Game (생성자) .................... Line 34
+    2. Game::run (메인 루프) .................. Line 47
+    3. Game::initStages (난이도 설정) ......... Line 124
+    4. Game::resetGame (초기화) ............... Line 144
+    5. Game::makeNewBlockType (블록 생성) ..... Line 158
+    6. Game::spawnNextBlock (다음 블록) ....... Line 174
+    7. Game::handleInput (키 입력) ............ Line 196
+    8. Game::moveDown (하강 로직) ............. Line 294
+    9. Game::moveSide (좌우 이동) ............. Line 388
+   10. Game::rotateBlock (회전) ............... Line 410
+   11. Game::useBomb (폭탄 스킬) .............. Line 438
+  ===========================================================================
+  */
 
 namespace Tetris {
+    /*
+     * [Game 생성자]
+     * 설명: 게임에 필요한 변수들을 초기화하고 난이도 데이터를 설정합니다.
+     * 랜덤 시드값 생성도 여기서 수행합니다.
+     */
     Game::Game() 
         : level(0), score(0), totalLines(0), gameOver(false), 
         bombCount(3), savedBlockForBomb(-1), shouldExitToTitle(false)  // [추가] 초기화
@@ -20,178 +44,160 @@ namespace Tetris {
         initStages();
     }
 
+    /*
+     * [함수: run]
+     * 설명: 게임의 전체 생명주기를 관리하는 메인 루프입니다.
+     * 인트로 -> (초기화 -> 레벨선택 -> 인게임 루프) 과정을 반복합니다.
+     * 레벨 선택에서 종료(-1) 신호를 받으면 루프를 탈출합니다.
+     */
     void Game::run() {
+        // 1. 게임 초기 설정
         ConsoleHelper::cursorVisible(false);
         showLogo();
 
         while (true) {
+            // 2. 매 게임마다 초기화 및 레벨 선택
             resetGame();
             selectLevel();
 
-            // [추가] 레벨 선택에서 'Q'를 눌러 -1이 설정되었다면 게임 종료
+            // [종료 체크] 레벨 선택에서 'Q'(-1)를 누르면 종료
             if (level == -1) {
-                ConsoleHelper::clear();
-
-                // 1. Good Bye 아트 정의 (이스케이프 문자 처리 완료)
-                std::string goodByeArt[6] = {
-                    "  ________                   .___ __________             ._.",
-                    " /  _____/  ____   ____   __| _/ \\______   \\___.__. ____| |",
-                    "/   \\  ___ /  _ \\ /  _ \\ / __ |   |    |  _<   |  |/ __ \\ |",
-                    "\\    \\_\\  (  <_> |  <_> ) /_/ |   |    |   \\\\___  \\  ___/\\|",
-                    " \\______  /\\____/ \\____/\\____ |   |______  // ____|\\___  >_",
-                    "        \\/                   \\/          \\/ \\/         \\/\\/"
-                };
-
-                // 2. 중앙 정렬 좌표 계산
-                // 아트 너비: 약 67칸
-                // 화면 너비: 120칸
-                // 시작 X: (120 - 67) / 2 = 26
-                int startX = 26;
-                int startY = 10; // 화면 중앙 높이
-
-                // 3. 출력 (노란색으로 예쁘게)
-                ConsoleHelper::setColor(Color::WHITE);
-                for (int i = 0; i < 6; ++i) {
-                    ConsoleHelper::gotoXY(startX, startY + i);
-                    std::cout << goodByeArt[i];
-                }
-
-                // 4. 잠시 보여주고 종료
-                Sleep(2000); // 2초 대기
-
-                // 색상 초기화 및 커서 아래로 이동 (콘솔창 닫힐 때 깔끔하게)
-                ConsoleHelper::setColor(Color::WHITE);
-                ConsoleHelper::gotoXY(0, 38);
-                break; // 프로그램 종료
+                showGoodBye(); // 종료 화면 출력
+                break;         // 프로그램 종료
             }
-            ConsoleHelper::clear();
 
+            // 3. 게임 플레이 준비
+            ConsoleHelper::clear();
             board.setLevel(level);
             board.reset();
             heldBlockType = -1;
             canHold = true;
-            board.draw();
+            board.draw(); // 보드 그리기
 
+            // 첫 블록 생성 및 UI 초기화
             nextBlockType = makeNewBlockType();
             spawnNextBlock();
             showStats();
             showNextBlockPreview();
 
+            // -------------------------------------------------------
+            // [인게임 루프] 프레임 단위로 게임 로직을 실행합니다.
+            // -------------------------------------------------------
             int frameCount = 0;
             while (!gameOver) {
+                // (1) 키 입력 처리
                 handleInput();
 
-                // [수정 1] "나가기"가 눌렸으면 루프 즉시 탈출 (더 이상 진행 X)
+                // (2) 강제 종료 체크 (일시정지 메뉴에서 Quit 선택 시)
                 if (shouldExitToTitle) {
                     break;
                 }
 
-                //일시정지 로직
+                // (3) 일시정지 체크 (handleInput 내부에서 처리되지만 안전장치 유지)
                 if (isPaused) {
                     Sleep(15);
                     continue;
                 }
 
+                // (4) 블록 자동 하강 (속도 조절)
                 if (frameCount % stages[level].speed == 0) {
-                    if (!moveDown()) {}
+                    moveDown();
                 }
 
+                // (5) 게임 오버 체크
                 if (gameOver) {
-                    // [수정 2] "타이틀로 나가기"가 아닐 때만(진짜 죽었을 때만) 결과창 띄우기
+                    // 강제 종료가 아닐 때만 결과창 및 랭킹 저장
                     if (!shouldExitToTitle) {
-                        showGameOver();           // 기존 게임 오버 팝업
-                        promptNameAndSaveScore(); // [추가] 닉네임 입력 팝업
+                        showGameOver();
+                        promptNameAndSaveScore();
                     }
                     break;
                 }
 
+                // (6) 프레임 대기 및 카운트
                 Sleep(15);
                 frameCount++;
             }
         }
     }
 
+    /*
+     * [함수: initStages]
+     * 설명: 각 레벨별 난이도 데이터(속도, 확률 등)를 초기화합니다.
+     */
     void Game::initStages() {
+        // { 낙하 속도(낮을수록 빠름) , 긴 막대기 획득 확률 , 레벨업 조건 줄 수 }
         stages = {
-            {40, 20, 10}, {38, 18, 12}, {35, 18, 15}, {30, 17, 20},
-            {25, 16, 20}, {20, 14, 25}, {15, 14, 25}, {10, 13, 30},
-            {6, 12, 35},  {4, 11, 99999}
+            {40, 20, 10}, 
+            {38, 18, 12}, 
+            {35, 18, 15}, 
+            {30, 17, 20},
+            {25, 16, 20}, 
+            {20, 14, 25}, 
+            {15, 14, 25}, 
+            {10, 13, 30},
+            {6, 12, 35},  
+            {4, 11, 99999}
         };
-    }//speed/긴 막대기 획득 확률/레벨업 조건
-    //레벨마다 클리어 조건 바꿈
+    }
 
+    /*
+     * [함수: resetGame]
+     * 설명: 새 게임을 시작하기 위해 점수, 상태 변수들을 리셋합니다.
+     */
     void Game::resetGame() {
         score = 0;
         totalLines = 0;
         gameOver = false;
-
-        // [추가] 게임 리셋 시 폭탄 3개 충전
-        bombCount = 3;
+        bombCount = 3;              // 게임 리셋 시 폭탄 3개 충전
         savedBlockForBomb = -1;
-
-        // [추가] 중요! 새 게임 시작할 때는 '나가기 상태'를 해제해야 함
-        shouldExitToTitle = false;
-
-        // (선택) 혹시 모르니 일시정지 상태도 확실히 꺼둠
-        isPaused = false;
+        shouldExitToTitle = false;  // 새 게임 시작할 때 '나가기 상태'를 해제
+        isPaused = false;           // 혹시 모르니 일시정지 상태도 확실히 꺼둠
 
     }
 
+    /*
+     * [함수: makeNewBlockType]
+     * 설명: 확률에 따라 새로운 블록의 타입(번호)을 생성합니다.
+     * 리턴: 생성된 블록 타입 ID (0~6, 혹은 7:폭탄)
+     */
     int Game::makeNewBlockType() {
         int rnd = rand() % 100;
 
-        // [추가] 5% 확률로 폭탄(Type 7) 생성
-        // if (rnd < 5) return 7;
-        // [삭제] 3번 액티브로 변경
+        // 스테이지 설정에 따라 긴 막대기(Type 0) 확률 조정
+        if (rnd <= stages[level].stickRate) 
+            return 0;
 
-        if (rnd <= stages[level].stickRate) return 0;
         return (rand() % 6) + 1;
     }
 
-  /*  void Game::spawnNextBlock() {
-        currentBlock.spawn(nextBlockType);
-        nextBlockType = makeNewBlockType();
-        showNextBlockPreview();
-    }*/
+    /*
+     * [함수: spawnNextBlock]
+     * 설명: 대기 중이던 Next 블록을 현재 블록으로 가져오고,
+     * 새로운 Next 블록을 생성합니다. 관련 UI도 갱신합니다.
+     */
     void Game::spawnNextBlock() {
         currentBlock.spawn(nextBlockType);
         nextBlockType = makeNewBlockType();
-        showNextBlockPreview();
 
-        canHold = true;
+        showNextBlockPreview();
+        canHold = true;      // 홀드 기능 사용 가능 상태로 리셋
         showHoldBlock();
-        // [추가] 처음 나올 때도 그려주기
+        
         drawGhost(false);
         currentBlock.draw();
     }
-   
-
+    
+    /*
+     * [함수: handleInput]
+     * 설명: 사용자 키보드 입력을 감지하고 해당 동작을 수행합니다.
+     * (이동, 회전, 스킬, 일시정지 등)
+     */
     void Game::handleInput() {
         if (_kbhit()) {
             int key = _getch();
 
-            //// [추가] 'p' 또는 'P'를 누르면 일시정지 토글
-            //    //일시정지 로직
-            //if (key == 'p' || key == 'P') {
-            //    isPaused = !isPaused;
-
-            //    // 일시정지 상태면 화면에 표시
-            //    if (isPaused) {
-            //        ConsoleHelper::gotoXY(OFFSET_X + 4, 10);
-            //        ConsoleHelper::setColor(Color::RED);
-            //        printf(" PAUSED ");
-            //    }
-            //    else {
-            //        // 다시 게임 화면(보드)을 덮어씌워 "PAUSED" 글자 지우기
-            //        board.draw();
-            //        currentBlock.draw();
-            //    }
-            //    return; // 입력을 처리했으니 종료
-            //}
-
-            //if (isPaused) return; // [추가] 일시정지 중이면 다른 키 입력 무시
-
-
+            // 특수키 (방향키) 처리
             if (key == 0xE0 || key == 0) {
                 key = _getch();
                 if (isPaused) return;
@@ -203,8 +209,9 @@ namespace Tetris {
                 case static_cast<int>(Key::DOWN): moveDown(); break;
                 }
             }
+            // 일반 키 처리
             else {
-                // P 키 확인 (대소문자 모두)
+                // C 키: 홀드
                 if (key == 'c' || key == 'C') {
                     // 1. 이번 턴에 이미 썼다면 무시
                     if (!canHold) return;
@@ -217,155 +224,99 @@ namespace Tetris {
                     currentBlock.draw(true);
                     drawGhost(true);
 
+                    // 홀드 로직: 저장된 블록이 없으면 넣고, 있으면 교체
                     if (heldBlockType == -1) {
-                        // Case A: 킵 된게 없을 때
+                        // Case A: 킵된 블록이 없을 때
                         heldBlockType = currentBlock.getType(); // 현재 블록 저장
-                        spawnNextBlock(); // 다음 블록을 현재 블록으로 가져옴
-
-                        // spawnNextBlock에서 canHold=true가 되버리므로 다시 잠금
-                        canHold = false;
+                        spawnNextBlock();                       // 다음 블록을 현재 블록으로 가져옴
                     }
                     else {
                         // Case B: 킵 된게 있을 때 (서로 교체)
                         int tempType = currentBlock.getType();
 
-                        // 저장된 타입으로 현재 블록 재생성 (위치, 각도 초기화)
-                        currentBlock.spawn(heldBlockType);
-                        heldBlockType = tempType; // 현재 타입을 저장소로
-
-                        // 교체 후 잠금
-                        canHold = false;
+                        currentBlock.spawn(heldBlockType);      // 저장된 타입으로 현재 블록 재생성 (위치, 각도 초기화)
+                        heldBlockType = tempType;               // 현재 타입을 저장소로
                     }
+                    canHold = false; // 이번 턴에는 다시 사용 불가
 
-                    // 3. 변경된 상태 화면에 그리기
-                    showHoldBlock();    // 왼쪽 홀드창 갱신
+                    // 3. 변경된 상태 반영하여 UI 갱신
+                    showHoldBlock();        // 왼쪽 홀드창 갱신
                     showNextBlockPreview(); // (Case A일 경우 필요)
-                    currentBlock.draw(); // 현재 블록 다시 그리기
+                    currentBlock.draw();    // 현재 블록 다시 그리기
 
                     return; // 입력 처리 완료
                 }
-                if (key == 'p' || key == 'P') {
-                    isPaused = true; // 없애도 되는데 이미 너무 많이 쓰여서 잔류
 
-                    // [수정] 팝업 함수 호출, 결과 반환
+                // P 키: 일시 정지 (메뉴 호출)
+                if (key == 'p' || key == 'P') {
+                    isPaused = true;
+
+                    // 팝업 함수 호출, 결과 반환
                     int choice = drawPausePopup();
                     
                     // [선택 1] 나가기 Quit 선택 시
                     if (choice == 1) {
                         isPaused = false;          // 상태 초기화 
-                        shouldExitToTitle = true;   // 타이틀로 간다고 표시
+                        shouldExitToTitle = true;  // 타이틀로 간다고 표시
                         gameOver = true;           // 게임 루프 종료시키기
                         return;     
                     }
 
                     // [선택 0] 계속하기(Resume) 선택 시 -> 기존 복구 로직 실행
                     isPaused = false;
-                    ConsoleHelper::clear();
-                    board.draw();
-                    showStats();
-                    showNextBlockPreview();
-                    showHoldBlock();
-                    drawGhost(false);
-                    currentBlock.draw();
-                    isPaused = false;
-                    return;
-
-                    // 3. 복구
                     ConsoleHelper::clear(); // pause 창 지우기
-
                     board.draw();           // a. 모드
                     showStats();            // b. 점수, 레벨, 폭탄
                     showNextBlockPreview(); // c. 다음 블록 UI
                     showHoldBlock();        // d. 홀드 UI
-
                     drawGhost(false);
                     currentBlock.draw();
-                    
+                    isPaused = false;
+
                     return;
                 }
-                // [추가] 'b', 'B' 입력 시 폭탄 사용
+
+                // B 키: 폭탄 스킬
                 if (key == 'b' || key == 'B') {
                     if (!isPaused) useBomb();
                     return;
                 }
 
-                if (isPaused) return; // 일시정지 중이면 다른 일반 키(스페이스바 등) 무시
-
-                // 스페이스바 처리
+                // Space 키: 하드 드롭 (바닥까지 즉시 이동)
+                if (isPaused) return;       // 일시정지 중이면 다른 일반 키(스페이스바 등) 무시
                 if (key == static_cast<int>(Key::SPACE)) {
-                    while (moveDown());
+                    while (moveDown());     // 바닥에 닿을 때까지 계속 내림
                 }
             }
         }
     }
 
-    //bool Game::moveDown() {
-    //    if (board.checkCollision(currentBlock, currentBlock.x, currentBlock.y + 1, currentBlock.angle)) {
-    //        if (currentBlock.y < 0) {
-    //            gameOver = true;
-    //            return false;
-    //        }
-
-    //        board.merge(currentBlock);
-
-    //        int lines = board.processFullLines();
-    //        if (lines > 0) {
-    //            totalLines += lines;
-    //           /* for (int k = 0; k < lines; k++) score += 100 + (level * 10) + (rand() % 10);*/
-
-    //            int baseScore = 0;
-    //            switch (lines) {
-    //            case 1: baseScore = 10; break;
-    //            case 2: baseScore = 30; break;  // 100*2 + 보너스
-    //            case 3: baseScore = 50; break;  // 100*3 + 보너스
-    //            case 4: baseScore = 80; break;  // '테트리스' (큰 보너스)
-    //            default: baseScore = 0; break;
-    //            }
-    //            // 레벨 가중치 추가
-    //            score += baseScore + (lines * level * 20);//line*20에서 점수를 더 주는거
-    //            //한줄이면 10, 두줄이면 30, 세줄 : 50, 네줄 : 80
-
-    //            if (totalLines >= stages[level].clearLineGoal) {
-    //                totalLines = 0;
-    //                if (level < 9) level++;
-    //                board.setLevel(level);
-    //                board.draw();
-    //            }
-    //            showStats();
-    //        }
-
-    //        spawnNextBlock();
-    //        currentBlock.draw();
-    //        return false;
-    //    }
-
-    //    currentBlock.draw(true);
-    //    currentBlock.y++;
-    //    currentBlock.draw();
-    //    return true;
-    //}
+    /*
+     * [함수: moveDown]
+     * 설명: 블록을 한 칸 아래로 이동시킵니다.
+     * 바닥이나 다른 블록에 닿았을 경우 고정(Merge) 및 줄 삭제 처리를 합니다.
+     * 리턴: true = 이동 성공, false = 바닥에 닿아서 멈춤(고정됨)
+     */
     bool Game::moveDown() {
-        // 1. 바닥에 닿았는지(충돌) 확인
+        // 1. 충돌 체크 (미리 한 칸 아래를 확인)
         if (board.checkCollision(currentBlock, currentBlock.x, currentBlock.y + 1, currentBlock.angle)) {
+            drawGhost(true);        // 블록이 굳기 직전에, 그려져 있던 고스트를 지워줍니다.
+            currentBlock.draw();    // 최종 위치 그리기
 
-            // [추가] 블록이 굳기 직전에, 그려져 있던 고스트를 지워줍니다.
-            // 안 지우면 바닥에 회색 네모가 남을 수 있습니다.
-            drawGhost(true);
-            currentBlock.draw();
-
+            // 천장에 닿았으면 게임 오버
             if (currentBlock.y < 0) {
                 gameOver = true;
                 return false;
             }
 
-            // [수정] 폭탄 블록(Type 7)인 경우 폭발, 아니면 일반 병합
+            // [폭탄 블록 처리] 폭탄인 경우
             if (currentBlock.getType() == BOMB_TYPE) {
-                // 1. 폭탄 폭발
+                // (1) 폭탄 폭발
                 // 폭탄의 중심 좌표 계산 (Block의 x, y는 4x4 박스의 좌상단)
                 // 폭탄 모양이 (1, 1)에 점이 있으므로. 실제 좌표는 x+1, y+1
                 int destroyed = board.explode(currentBlock.x + 1, currentBlock.y + 1);
 
-                // 점수 규칙: 블록 비례 보너스(임시)
+                // 점수 규칙: 블록 비례 보너스
                 if (destroyed > 0) {
                     if (destroyed <= 3)
                         score += destroyed * 30;
@@ -375,7 +326,7 @@ namespace Tetris {
                         score += destroyed * 90;
                 }
 
-                // 2. 저장해뒀던 원래 블록을 다시 소환 (Next 블록을 소모하지 않음)
+                // (2) 저장해뒀던 원래 블록을 다시 소환 (Next 블록을 소모하지 않음)
                 if (savedBlockForBomb != -1) {
                     currentBlock.spawn(savedBlockForBomb);
                     savedBlockForBomb = -1; // 저장소 초기화
@@ -383,70 +334,67 @@ namespace Tetris {
                     // 소환된 원래 블록 그리기
                     drawGhost(false);
                     currentBlock.draw();
-                    return false; // 이번 틱 종료 (바로 내려가지 않음)
+
+                    return false;           // 이번 틱 종료 (바로 내려가지 않음)
                 }
             } 
             else 
-                board.merge(currentBlock);
+                board.merge(currentBlock);  // 일반 블록 고정
 
+            // 줄 삭제 처리
             int lines = board.processFullLines();
 
-            // [수정] 줄이 안 지워졌을 때 회색으로 안 바뀜, 직접 보드를 그려줘야 함
             if (lines == 0) 
-                board.draw();
+                board.draw();   // 줄 삭제 없어도 화면 갱신
             
             if (lines > 0) {
                 totalLines += lines;
-                for (int k = 0; k < lines; k++) score += 100 + (level * 10) + (rand() % 10);
+                // 점수 계산 (기본 점수 + 레벨 가중치)
+                for (int k = 0; k < lines; k++) 
+                    score += 100 + (level * 10) + (rand() % 10);
 
+                // 레벨업 체크
                 if (totalLines >= stages[level].clearLineGoal) {
                     totalLines = 0;
                     if (level < 9) level++;
                     board.setLevel(level);
-                    board.draw();
+                    board.draw();   // 레벨업 시 벽 색상 변경 반영
                 }
                 showStats();
             }
 
+            // 다음 블록 소환
             spawnNextBlock();
 
-            // [추가] spawnNextBlock 안에서 그리겠지만, 혹시 모르니 여기서도 그려줍니다.
-            // (spawnNextBlock에 이미 추가했다면 이 줄은 없어도 됩니다)
+            // UI 안전 갱신
             drawGhost(false);
             currentBlock.draw();
 
-            return false;
+            return false; // 더 이상 내려가지 않음
         }
 
-        // 2. 바닥에 안 닿았으면 아래로 이동
+        // 2. 충돌 없음: 실제 이동 처리
+        drawGhost(true);         // 이전 고스트 지우기
+        currentBlock.draw(true); // 이전 블록 지우기
 
-        // [추가] 이동하기 전에 '옛날 고스트' 먼저 지우기
-        drawGhost(true);
+        currentBlock.y++;        // 좌표 이동
 
-        currentBlock.draw(true); // 옛날 블록 지우기
-
-        currentBlock.y++; // 좌표 이동
-
-        // [추가] 이동한 곳에 '새 고스트' 먼저 그리기
-        drawGhost(false);
-
-        currentBlock.draw(); // 새 블록 그리기 (고스트 위에 덮어씀)
+        drawGhost(false);        // 새 고스트 그리기
+        currentBlock.draw();     // 새 블록 그리기
 
         return true;
     }
-
-  /*  void Game::moveSide(int dx) {
-        if (!board.checkCollision(currentBlock, currentBlock.x + dx, currentBlock.y, currentBlock.angle)) {
-            currentBlock.draw(true);
-            currentBlock.x += dx;
-            currentBlock.draw();
-        }
-    }*/
+    
+    /*
+     * [함수: moveSide]
+     * 설명: 블록을 좌(-1) 또는 우(+1)로 이동시킵니다.
+     * 인자: dx (이동할 방향과 거리)
+     */
     void Game::moveSide(int dx) {
         if (!board.checkCollision(currentBlock, currentBlock.x + dx, currentBlock.y, currentBlock.angle)) {
 
             // 1. 지우기 (고스트 먼저, 그다음 블록)
-            drawGhost(true);       // 고스트 지움
+            drawGhost(true);         // 고스트 지움
             currentBlock.draw(true); // 블록 지움
 
             // 2. 이동
@@ -454,762 +402,43 @@ namespace Tetris {
 
             // 3. 그리기 (고스트 먼저, 그다음 블록)
             // 고스트를 먼저 그려야 블록이 고스트 위에 겹쳐질 때 블록이 우선순위를 가짐
-            drawGhost(false);      // 새 위치에 고스트 그림
+            drawGhost(false);        // 새 위치에 고스트 그림
             currentBlock.draw();     // 새 위치에 블록 그림
         }
     }
 
-   /* void Game::rotateBlock() {
-        int nextAngle = currentBlock.getNextAngle();
-        int kickOffsets[] = { 0, -1, 1, -2, 2 };
-
-        for (int offset : kickOffsets) {
-            int testX = currentBlock.x + offset;
-            if (!board.checkCollision(currentBlock, testX, currentBlock.y, nextAngle)) {
-                currentBlock.draw(true);
-                currentBlock.angle = nextAngle;
-                currentBlock.x = testX;
-                currentBlock.draw();
-                return;
-            }
-        }
-    }*/
+    /*
+     * [함수: rotateBlock]
+     * 설명: 블록을 시계 방향으로 회전시킵니다. (Wall Kick 로직 포함)
+     */
     void Game::rotateBlock() {
         int nextAngle = currentBlock.getNextAngle();
+        // Wall Kick: 회전 시 벽에 걸리면 위치를 옮겨서 회전을 성공시킴
         int kickOffsets[] = { 0, -1, 1, -2, 2 };
 
         for (int offset : kickOffsets) {
             int testX = currentBlock.x + offset;
             if (!board.checkCollision(currentBlock, testX, currentBlock.y, nextAngle)) {
 
-                // [추가] 회전하기 전에 '옛날 고스트' 지우기
-                drawGhost(true);
-
-                currentBlock.draw(true); // 옛날 블록 지우기
+                drawGhost(true);         // 회전하기 전에 이전 고스트 지우기
+                currentBlock.draw(true); // 이전 블록 지우기
 
                 // 상태 변경 (회전 및 위치 보정)
                 currentBlock.angle = nextAngle;
                 currentBlock.x = testX;
 
-                // [추가] 회전한 상태의 '새 고스트' 먼저 그리기
-                drawGhost(false);
+                drawGhost(false);        // [추가] 회전한 상태의 새 고스트 그리기
+                currentBlock.draw();     // 새 블록 그리기
 
-                currentBlock.draw(); // 새 블록 그리기
                 return;
             }
         }
     }
 
-    void Game::showStats() {
-        static const int STAT_X = 77; // 기준 X좌표 (NEXT 블록과 라인 맞춤)
-
-        // ====================================================
-        // 1. STATS 박스 (STAGE, SCORE, LINES 통합)
-        // ====================================================
-        int statsY = 8;     // 시작 Y좌표
-        int boxWidth = 24;  // 박스 너비 (내용물에 맞춰 넉넉하게)
-        int boxHeight = 7;  // 높이
-
-        ConsoleHelper::setColor(Color::GRAY);
-
-        // [테두리 그리기]
-        // 상단: ┏━━ STATS ━━┓
-        ConsoleHelper::gotoXY(STAT_X, statsY);
-        std::cout << "┏━━━━━━ STAT ━━━━━━┓";
-
-        // 중단 (몸통)
-        for (int i = 1; i < boxHeight; ++i) {
-            ConsoleHelper::gotoXY(STAT_X, statsY + i);
-            std::cout << "┃                  ┃";
-        }
-
-        // 하단: ┗━━━━━━━━━━━━┛
-        ConsoleHelper::gotoXY(STAT_X, statsY + boxHeight);
-        std::cout << "┗━━━━━━━━━━━━━━━━━━┛";
-
-        // [내용 출력]
-        // 1) STAGE
-        ConsoleHelper::gotoXY(STAT_X + 3, statsY + 2);
-        ConsoleHelper::setColor(Color::GRAY);
-        std::cout << "STAGE";
-
-        ConsoleHelper::gotoXY(STAT_X + 11, statsY + 2);
-        ConsoleHelper::setColor(static_cast<Color>((level % 6) + 1));
-        std::cout << std::setw(2) << level + 1; // 2자리수 정렬
-
-        // 2) 구분선 (선택사항, 깔끔함을 위해 공백 유지)
-
-        // 3) SCORE & LINES 헤더
-        ConsoleHelper::setColor(Color::GRAY);
-        ConsoleHelper::gotoXY(STAT_X + 3, statsY + 4);
-        std::cout << "SCORE    LINES";
-
-        // 4) SCORE & LINES 값
-        ConsoleHelper::setColor(Color::WHITE);
-        ConsoleHelper::gotoXY(STAT_X + 3, statsY + 5);
-        std::cout << std::setw(5) << score;
-
-        ConsoleHelper::gotoXY(STAT_X + 12, statsY + 5);
-        std::cout << std::setw(5) << (stages[level].clearLineGoal - totalLines) << "  "; // 잔상 제거용 공백
-
-        // ====================================================
-        // 2. BOMB 박스 (폭탄 스킬)
-        // ====================================================
-        int bombY = statsY + boxHeight + 2; // STATS 박스 한 칸 아래 (Y=16)
-        int bombHeight = 4; // 높이
-
-        ConsoleHelper::setColor(Color::GRAY);
-
-        // [테두리 그리기]
-        // 상단: ┏━━ BOMB ━━━┓
-        ConsoleHelper::gotoXY(STAT_X, bombY);
-        std::cout << "┏━━ BOMBS ━━┓";
-
-        // 중단
-        for (int i = 1; i < bombHeight - 2; ++i) {
-            ConsoleHelper::gotoXY(STAT_X, bombY + i);
-            std::cout << "┃           ┃";
-        }
-
-        // 하단
-        ConsoleHelper::gotoXY(STAT_X, bombY + bombHeight - 2);
-        std::cout << "┗━━━━━━━━━━━┛";
-
-        // [내용 출력]
-        ConsoleHelper::gotoXY(STAT_X + 4, bombY + 1); // 중앙 정렬 느낌
-        ConsoleHelper::setColor(Color::RED);
-        for (int i = 0; i < 3; ++i) {
-            if (i < bombCount) std::cout << "● ";
-            else std::cout << "○ ";
-        }
-    }
-
-    void Game::showNextBlockPreview() {
-        // [수정] 보드 오른쪽(X=76) 배치
-        int startX = 77;
-        int startY = 1; // 보드 맨 윗줄과 맞춤
-
-        // 1. UI 틀 그리기 (NEXT 스타일)
-        ConsoleHelper::setColor(Color::GRAY);
-        ConsoleHelper::gotoXY(startX, startY);     std::cout << "┏━━ NEXT ━━┓";
-        for (int i = 0; i < 4; i++) {
-            ConsoleHelper::gotoXY(startX, startY + 1 + i); std::cout << "┃          ┃";
-        }
-        ConsoleHelper::gotoXY(startX, startY + 5); std::cout << "┗━━━━━━━━━━┛";
-
-        // 2. 블록 그리기
-        // 박스 내부 좌표 계산 (틀 두께 고려)
-        int blockDrawX = startX + 3; // 박스 안쪽 X
-        int blockDrawY = startY + 1; // 박스 안쪽 Y
-
-        ShapeBlock temp;
-        temp.spawn(nextBlockType);
-
-        // 블록 모양 데이터 가져오기
-        const auto& shape = ShapeRepository::getShape(nextBlockType)[0];
-        ConsoleHelper::setColor(ShapeRepository::getColorForType(nextBlockType));
-
-        for (int r = 0; r < 4; ++r) {
-            for (int c = 0; c < 4; ++c) {
-                // 박스 내부 좌표 기준으로 그리기
-                ConsoleHelper::gotoXY((r * 2) + blockDrawX, c + blockDrawY);
-                if (shape[c][r] == 1) {
-                    std::cout << "■";
-                }
-                else {
-                    std::cout << "  ";
-                }
-            }
-        }
-    }
-
-    void Game::selectLevel() {
-        ConsoleHelper::clear();
-
-        // [좌표 계산]
-        int boxX = 42;
-        int boxY = 6;
-
-        ConsoleHelper::setColor(Color::GRAY);
-
-        // 1. GAME KEY 설명 박스 (높이 1칸 늘림)
-        ConsoleHelper::gotoXY(boxX-5, boxY);     std::cout << "┏━━━━━━━━━━━━━━━━━━━ <GAME KEY> ━━━━━━━━━━━━━━━━━┓";
-
-        ConsoleHelper::gotoXY(boxX-5, boxY + 1); std::cout << "┃             UP    : Rotate Block               ┃";
-        ConsoleHelper::gotoXY(boxX-5, boxY + 2); std::cout << "┃           DOWN  : Move One-Step Down           ┃";
-        ConsoleHelper::gotoXY(boxX-5, boxY + 3); std::cout << "┃           SPACE : Move Bottom Down             ┃";
-        ConsoleHelper::gotoXY(boxX-5, boxY + 4); std::cout << "┃             LEFT  : Move Left                  ┃";
-        ConsoleHelper::gotoXY(boxX-5, boxY + 5); std::cout << "┃             RIGHT : Move Right                 ┃";
-        ConsoleHelper::gotoXY(boxX-5, boxY + 6); std::cout << "┃             B     : Bomb Skill                 ┃";
-        ConsoleHelper::gotoXY(boxX-5, boxY + 7); std::cout << "┃             P     : Pause / Menu               ┃";
-
-        // [추가] 종료 키 설명
-        ConsoleHelper::gotoXY(boxX-5, boxY + 8); std::cout << "┃             Q     : Quit Game                  ┃";
-
-        // 바닥 테두리 한 칸 아래로 이동 (boxY + 9)
-        ConsoleHelper::gotoXY(boxX-5, boxY + 9); std::cout << "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛";
-
-        // 2. TOP N 점수판 (위치 조정)
-        int scoreX = boxX + 5;
-        int scoreY = boxY + 12; // 박스가 커졌으니 점수판도 한 칸 아래로(11 -> 12)
-
-        showHighScores(HIGH_SCORE_LIMIT, scoreX, scoreY);
-        ConsoleHelper::setColor(Color::GRAY);
-
-        // 3. 입력 받기
-        ConsoleHelper::flushInput();
-
-        std::string input;
-        int selectedLevel = -1;
-
-        // 안내 문구
-        int inputX = 42; // "Select Level [1-8] or [Q]uit: " 길이 고려해서 조정
-        int inputY = 3;
-
-        ConsoleHelper::cursorVisible(true);
-
-        while (true) { // 무한 루프로 변경하여 유효 입력까지 대기
-            ConsoleHelper::setColor(Color::GRAY);
-            ConsoleHelper::gotoXY(inputX, inputY);
-            std::cout << "Select Level [1-8] or [Q]uit: "; // 문구 변경
-
-            // 입력창 지우기
-            ConsoleHelper::setColor(Color::GRAY);
-            ConsoleHelper::gotoXY(inputX + 30, inputY);
-            std::cout << "          ";
-            ConsoleHelper::gotoXY(inputX + 30, inputY);
-
-            // 입력 받기
-            if (!std::getline(std::cin, input) || input.empty()) {
-                ConsoleHelper::flushInput();
-                continue;
-            }
-
-            // [종료 체크] Q 또는 q 입력 시
-            if (input == "q" || input == "Q") {
-                level = -1; // 종료 신호로 -1 사용
-                break;      // 루프 탈출
-            }
-
-            // [레벨 체크] 1~8 숫자 입력 시
-            if (input.size() == 1 && input.at(0) >= '1' && input.at(0) <= '8') {
-                selectedLevel = input.at(0) - '0';
-                level = selectedLevel - 1; // 실제 레벨(0~7) 설정
-                break; // 루프 탈출
-            }
-
-            // 잘못된 입력
-            ConsoleHelper::gotoXY(41, inputY + 1);
-            ConsoleHelper::setColor(Color::RED);
-            std::cout << "Please enter 1-8 or Q to quit.";
-            ConsoleHelper::setColor(Color::GRAY);
-        }
-
-        ConsoleHelper::cursorVisible(false);
-    }
-
-    void Game::showLogo() {
-        ConsoleHelper::cursorVisible(false);
-
-        int startX = 28;  // 왼쪽 여백
-        int startY = 3;  // 시작 높이 (아트가 커서 조금 위로 올림)
-
-        // ==========================================================
-        // 1. "BOMB!" 아트 출력 (빨간색)
-        // ==========================================================
-        ConsoleHelper::setColor(Color::RED);
-
-        // 백슬래시(\)를 모두 이중(\\)으로 처리했습니다.
-        std::string bombArt[6] = {
-            "__________              ___.  ._. ",
-            "\\______   \\ ____   _____\\_ |__| |",
-            " |    |  _//  _ \\ /     \\| __ \\ |",
-            " |    |   (  <_> )  Y Y  \\ \\_\\ \\|",
-            " |______  /\\____/|__|_|  /___  /_ ",
-            "        \\/             \\/    \\/\\/"
-        };
-
-        for (int i = 0; i < 6; i++) {
-            // 중앙 정렬을 위해 약간 오른쪽(startX + 12)에서 출력
-            ConsoleHelper::gotoXY(startX + 13, startY + i);
-            std::cout << bombArt[i];
-        }
-
-        // ==========================================================
-        // 2. "TETRIS" 아트 출력 (한 줄씩 색상 변경 효과)
-        // ==========================================================
-        int textY = startY + 7; // BOMB 아래쪽
-
-        // 무지개 색상 배열
-        Color lineColors[6] = { Color::RED, Color::YELLOW, Color::GREEN, Color::SKY_BLUE, Color::BLUE, Color::VIOLET };
-        std::string tetrisArt[6] = {
-            "____________________________________________.___  _________",
-            "\\__    ___/\\_    _____/\\__    ___/\\______    \\  |/   _____/",
-            "  |    |    |    __)_    |    |    |       _/   |\\_____  \\ ",
-            "  |    |    |        \\   |    |    |    |   \\   |/        \\",
-            "  |____|   /_______  /   |____|    |____|_  /___/_______  /",
-            "                   \\/                     \\/            \\/ "
-        };
-
-        for (int i = 0; i < 6; i++) {
-            // 한 줄마다 색깔을 다르게 해서 레트로한 느낌 주기
-            ConsoleHelper::setColor(lineColors[i]);
-            ConsoleHelper::gotoXY(startX, textY + i);
-            std::cout << tetrisArt[i];
-        }
-
-        // ==========================================================
-        // 3. 안내 문구 및 대기 애니메이션
-        // ==========================================================
-
-        int animBaseY = textY + 12; // 애니메이션 위치
-
-        int tick = 0;               // [추가] 반복 횟수 세는 변수
-        bool showText = false;      // [추가] 텍스트 깜빡임
-
-        while (!_kbhit()) {
-            // [1] 글씨 깜빡임 처리 (느린 박자)
-            // 10번 돌 때마다(약 0.5초) 상태 변경
-            if (tick % 10 == 0) {
-                showText = !showText;
-            }
-
-            // 깜빡임 로직
-            ConsoleHelper::gotoXY(startX + 15, textY + 9); // 중앙 정렬 위치 조정
-            if (showText) {
-                ConsoleHelper::setColor(Color::WHITE);
-                std::cout << "[ Please Press Any Key to Start ]";
-                ConsoleHelper::setColor(Color::WHITE);
-                // 잔상 지우기 (너비를 넉넉하게 70칸 정도로 잡음)
-                ConsoleHelper::setColor(Color::BLACK);
-            }
-            else
-                std::cout << "                                                ";
-
-            if (tick % 25 == 0) {
-                // 잔상 지우기
-                ConsoleHelper::setColor(Color::BLACK);
-                for (int y = animBaseY - 1; y < animBaseY + 6; ++y) {
-                    ConsoleHelper::gotoXY(startX, y);
-                    std::cout << "                                                                      ";
-                }
-
-                // 장식용 랜덤 블록 그리기
-                for (int k = 0; k < 4; ++k) {
-                    int rType = rand() % 7;
-                    int rX = startX + 5  + k * 16;
-                    int rY = animBaseY;
-
-                    const auto& shape = ShapeRepository::getShape(rType)[0];
-                    ConsoleHelper::setColor(ShapeRepository::getColorForType(rType));
-
-                    for (int i = 0; i < 4; ++i) {
-                        for (int j = 0; j < 4; ++j) {
-                            if (shape[i][j]) {
-                                ConsoleHelper::gotoXY(rX + j * 2, rY + i);
-                                std::cout << "■";
-                            }
-                        }
-                    }
-                }
-            }
-
-            tick = (tick + 1) % 50;
-            Sleep(50);
-        }
-
-        _getch();
-        ConsoleHelper::clear();
-    }
-
-    void Game::showGameOver() {
-        // 1. GAME OVER 아트 정의
-        std::string gameOverArt[6] = {
-            "  ________                       ________                     ._.",
-            " /  _____/_____    _____   ____   \\_____ \\___   __ ___________| |",
-            "/   \\  ___\\__  \\  /     \\_/ __ \\   /   |   \\  \\/ // __ \\_  __ \\ |",
-            "\\    \\_\\  \\/ __ \\|  Y Y  \\  ___/  /    |    \\   /\\  ___/|  | \\/\\|",
-            " \\______  (____  /__|_|  /\\___  > \\_______  /\\_/  \\___  >__|   __",
-            "        \\/     \\/      \\/     \\/          \\/          \\/       \\/"
-        };
-
-        // 2. 박스 크기 계산 (전각 문자 고려)
-        // 아트의 가로 길이가 약 71칸입니다. 
-        // 테두리 '━' 하나가 2칸을 차지하므로, 박스 너비는 짝수여야 딱 맞습니다.
-        int boxWidth = 78;          // 넉넉하게 잡음 (짝수)
-        int boxHeight = 12;         // 높이
-
-        // 위치 조정
-        int startX = 21;
-        int startY = 9;
-
-        // 3. 배경 지우기 (검은색으로 채움)
-        ConsoleHelper::setColor(Color::BLACK);
-        for (int y = 0; y < boxHeight; ++y) {
-            ConsoleHelper::gotoXY(startX, startY + y);
-            // 공백으로 채워 뒤의 게임 화면 가리기
-            for (int x = 0; x < boxWidth; ++x) {
-                std::cout << " ";
-            }
-        }
-
-        // 4. 테두리 그리기 (요청하신 문자 적용)
-        ConsoleHelper::setColor(Color::WHITE); 
-
-        // [상단] ┏━━━━━┓
-        ConsoleHelper::gotoXY(startX, startY);
-        std::cout << "┏";
-        // 가운데 선: (전체너비 - 양쪽모서리4칸) / 2칸씩
-        for (int i = 0; i <= (boxWidth - 4); ++i) std::cout << "━";
-        std::cout << "┓";
-
-        // [중단] ┃     ┃
-        for (int i = 1; i < boxHeight - 1; ++i) {
-            ConsoleHelper::gotoXY(startX, startY + i);
-            std::cout << "┃";
-            // 오른쪽 벽 위치: startX + 전체너비 - 2칸(두께)
-            ConsoleHelper::gotoXY(startX + boxWidth - 2, startY + i);
-            std::cout << "┃";
-        }
-
-        // [하단] ┗━━━━━┛
-        ConsoleHelper::gotoXY(startX, startY + boxHeight - 1);
-        std::cout << "┗";
-        for (int i = 0; i <= (boxWidth - 4); ++i) std::cout << "━";
-        std::cout << "┛";
-
-        // 5. 아트 출력 (테두리 안쪽에 배치)
-        ConsoleHelper::setColor(Color::WHITE);
-        for (int i = 0; i < 6; ++i) {
-            // startX + 3 (약간의 여백)
-            ConsoleHelper::gotoXY(startX + 4, startY + 2 + i);
-            std::cout << gameOverArt[i];
-        }
-
-        // 6. 안내 메시지 변수 설정
-        ConsoleHelper::setColor(Color::GRAY);
-        std::string msg = "[ Press Enter to Continue ]";
-
-        // 메시지 중앙 좌표 계산
-        int msgX = startX + (boxWidth - msg.length()) / 2 ;
-        int msgY = startY + 9;
-
-        // 깜빡임 제어 변수
-        int tick = 0;
-        bool showText = true;
-
-        // 7. 루프: 키 입력 대기 + 깜빡임 애니메이션
-        while (true) {
-            // (1) 키 입력 확인 (Non-blocking)
-            if (_kbhit()) {
-                int key = _getch();
-                if (key == 13) { // Enter
-                    break; // 루프 탈출 -> 게임 종료 처리로 넘어감
-                }
-            }
-
-            // (2) 깜빡임 로직 (10틱 = 0.5초 주기)
-            if (tick % 10 == 0) {
-                ConsoleHelper::gotoXY(msgX, msgY);
-
-                if (showText) {
-                    // 글씨 보이기
-                    ConsoleHelper::setColor(Color::WHITE);
-                    std::cout << msg;
-                }
-                else {
-                    // 글씨 지우기 (공백으로 덮어쓰기)
-                    // 메시지 길이만큼 공백 출력
-                    for (int i = 0; i < msg.length(); ++i) std::cout << " ";
-                }
-                showText = !showText; // 상태 반전 (보임 <-> 안보임)
-            }
-
-            Sleep(50); // 0.05초 대기
-            tick = (tick + 1) % 30; // 오버플로우 방지
-        }
-    }
-   
-    void Game::drawGhost(bool erase) {
-        // 1. 현재 블록을 복사 (위치, 회전각도, 모양 다 복사됨)
-        ShapeBlock ghost = currentBlock;
-
-        // 2. 바닥에 닿을 때까지 내림 (Hard Drop 계산)
-        while (!board.checkCollision(ghost, ghost.x, ghost.y + 1, ghost.angle)) {
-            ghost.y++;
-        }
-
-        // 3. 고스트 그리기 (isGhost = true 로 호출)
-        ghost.draw(erase, true);
-        //drawGhost(true) => 고스트 지우기
-        //drawGhost(false) => 고스트 그리기
-    }
-
-    // [Game 클래스 내부 private 함수로 추가]
-
-    void Game::showHoldBlock() {
-    // [수정] 보드 왼쪽(X=32) 배치 (보드가 48에서 시작하므로 그 왼쪽)
-    int startX = 32;
-    int startY = 1; // NEXT 블록과 높이 맞춤 (기존 13에서 1로 상향)
-
-    // 1. UI 틀 그리기
-    ConsoleHelper::setColor(Color::GRAY);
-    ConsoleHelper::gotoXY(startX, startY);     std::cout << "┏━━ HOLD ━━┓";
-    for (int i = 0; i < 4; i++) {
-        ConsoleHelper::gotoXY(startX, startY + 1 + i); std::cout << "┃          ┃";
-    }
-    ConsoleHelper::gotoXY(startX, startY + 5); std::cout << "┗━━━━━━━━━━┛";
-
-    // 2. 저장된 블록이 없으면 리턴
-    if (heldBlockType == -1) return;
-
-    // 3. 저장된 블록 그리기
-    int blockDrawX = startX + 3;
-    int blockDrawY = startY + 1;
-
-    const auto& shape = ShapeRepository::getShape(heldBlockType)[0];
-    ConsoleHelper::setColor(ShapeRepository::getColorForType(heldBlockType));
-
-    for (int r = 0; r < 4; ++r) {
-        for (int c = 0; c < 4; ++c) {
-            ConsoleHelper::gotoXY((r * 2) + blockDrawX, c + blockDrawY);
-            if (shape[c][r] == 1) {
-                std::cout << "■";
-            }
-            else {
-                std::cout << "  ";
-            }
-        }
-    }
-}
-
-    void Game::promptNameAndSaveScore() {
-        ConsoleHelper::clear();              // 화면 싹 지우고
-        ConsoleHelper::setColor(Color::GRAY);
-
-        int startX = 42;
-        int startY = 4;
-
-        // 간단한 팝업 박스 (ASCII로)
-        ConsoleHelper::gotoXY(startX, startY);     std::cout << "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━┓";
-        ConsoleHelper::gotoXY(startX, startY + 1); std::cout << "┃        SCORE RECORD       ┃";
-        ConsoleHelper::gotoXY(startX, startY + 2); std::cout << "┃                           ┃";
-        ConsoleHelper::gotoXY(startX, startY + 3); std::cout << "┃  Name :                   ┃";
-        ConsoleHelper::gotoXY(startX, startY + 4); std::cout << "┃                           ┃";
-        ConsoleHelper::gotoXY(startX, startY + 5); std::cout << "┃  Score: " << score;
-        int padding = 18 - std::to_string(score).size();
-        for (int i = 0; i < padding; i++) std::cout << " ";
-        std::cout << "┃";
-        ConsoleHelper::gotoXY(startX, startY + 6); std::cout << "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━┛";
-
-        // [추가] 점수 출력
-        int scoreX = startX;
-        int scoreY = startY + 10;
-
-        showHighScores(HIGH_SCORE_LIMIT, scoreX, scoreY);
-        ConsoleHelper::setColor(Color::GRAY);
-
-        // 입력 위치로 커서 옮기기 (“Name : ” 뒤)
-        ConsoleHelper::gotoXY(startX + 10, startY + 3);
-
-
-        // 이전 입력 비우기
-        ConsoleHelper::flushInput();
-
-        // 닉네임 입력 시 커서 보이기
-        ConsoleHelper::cursorVisible(true);
-
-        std::string name;
-        int maxLength = 16;
-        while (true) {
-            int key = _getch();
-
-            // 1. 엔터 키 (입력 완료)
-            if (key == 13) {
-                if (name.empty()) name = "NONAME"; // 빈칸이면 기본값
-                break;
-            }
-            // 2. 백스페이스 (지우기)
-            else if (key == 8) {
-                if (!name.empty()) {
-                    name.pop_back();      // 글자 삭제
-                    std::cout << "\b \b"; // 화면에서도 지우기 (뒤로가서 공백찍고 다시 뒤로)
-                }
-            }
-            // 3. 일반 문자 (영어, 숫자 등)
-            // 특수문자나 한글은 처리가 복잡하므로 여기선 제외하거나 단순 처리
-            else if (name.length() < maxLength && key >= 32 && key <= 126) {
-                name += (char)key;
-                std::cout << (char)key;
-            }
-        }
-
-        //입력 끝났으니 커서 다시 숨김
-        ConsoleHelper::cursorVisible(false);
-
-        // 텍스트 파일에 append
-        // 실행 파일이 있는 폴더에 score.txt가 계속 쌓이는 형태
-        std::ofstream out("score.txt", std::ios::app);
-        if (out.is_open()) {
-            // 예: HEOEUN<tab>12340 이런 형식으로 저장, 이름과 점수를 구별하는 구별자를 탭으로 함
-            out << name << "\t" << score << "\n";
-            out.close();
-        }
-
-        // [추가] 점수 저장하고 등수 최신화 해서 다시 출력
-        showHighScores(HIGH_SCORE_LIMIT, scoreX, scoreY, &name, score);
-
-        // [수정] 저장 완료 멘트 깜빡임 애니메이션
-        std::string savedMsg = "[ Saved! Press Any Key to Restart ]";
-
-        int msgX = startX;
-        int msgY = startY + 8;
-
-        int tick = 0;
-        bool showText = true;
-
-        // 키를 누를 때까지 무한 루프
-        while (true) {
-            // 1. 키 입력 확인 (안 멈춤)
-            if (_kbhit()) {
-                _getch(); // 입력된 키 소비 (버퍼 비우기)
-                break;    // 루프 탈출 -> 함수 종료 -> 게임 재시작
-            }
-
-            // 2. 깜빡임 로직 (0.5초 주기)
-            if (tick % 10 == 0) {
-                ConsoleHelper::gotoXY(msgX, msgY);
-
-                if (showText) {
-                    // 텍스트 보이기 (초록색)
-                    ConsoleHelper::setColor(Color::GREEN);
-                    std::cout << savedMsg;
-                }
-                else {
-                    // 텍스트 지우기 (공백)
-                    for (int i = 0; i < savedMsg.length(); ++i) std::cout << " ";
-                }
-                showText = !showText; // 상태 반전
-            }
-
-            Sleep(50);
-            tick = (tick + 1) % 30;
-        }
-
-        // 색상 초기화
-        ConsoleHelper::setColor(Color::BLACK);
-    }
-
-    void Game::showHighScores(int maxCount, int startX, int startY,
-        const std::string* curName, int curScore) {
-        std::ifstream in("score.txt");
-        if (!in.is_open()) {
-            ConsoleHelper::gotoXY(startX, startY);
-            ConsoleHelper::setColor(Color::GRAY);
-            std::cout << "No scores yet.";
-            ConsoleHelper::setColor(Color::BLACK);
-            return;
-        }
-
-        struct HighScore {
-            std::string name;
-            int score;
-        };
-
-        std::vector<HighScore> scores;
-        std::string line;
-
-        while (std::getline(in, line)) {
-            if (line.empty()) continue;
-
-            // name \t score 형식 가정
-            size_t tabPos = line.rfind('\t');
-            if (tabPos == std::string::npos) continue;
-
-            std::string name = line.substr(0, tabPos);
-            std::string scoreStr = line.substr(tabPos + 1);
-
-            try {
-                int s = std::stoi(scoreStr);
-                scores.push_back({ name, s });
-            }
-            catch (...) {
-                // 숫자 파싱 안 되면 스킵
-                continue;
-            }
-        }
-
-        in.close();
-
-        if (scores.empty()) {
-            ConsoleHelper::gotoXY(startX, startY);
-            ConsoleHelper::setColor(Color::GRAY);
-            std::cout << "No scores yet.";
-            ConsoleHelper::setColor(Color::BLACK);
-            return;
-        }
-
-        // 점수 내림차순 정렬
-        sort(scores.begin(), scores.end(),
-            [](const HighScore& a, const HighScore& b) {
-                return a.score > b.score;
-            });
-
-        int count = maxCount;
-        if (count > static_cast<int>(scores.size())) {
-            count = static_cast<int>(scores.size());
-        }
-
-        // 헤더 출력
-        ConsoleHelper::setColor(Color::WHITE);
-        ConsoleHelper::gotoXY(startX, startY);
-        std::cout << "RANK  NAME               SCORE";
-
-        bool marked = false; // NEW! 는 한 줄만 표시
-
-        // 내용 출력
-        ConsoleHelper::setColor(Color::GRAY);
-        for (int i = 0; i < count; ++i) {
-            ConsoleHelper::gotoXY(startX, startY + 1 + i);
-
-            // 등수에 따라 색 결정
-            if (i == 0) {
-                ConsoleHelper::setColor(Color::DARK_YELLOW);  // 1등
-            }
-            else if (i == 1) {
-                ConsoleHelper::setColor(Color::WHITE);        // 2등
-            }
-            else if (i == 2) {
-                ConsoleHelper::setColor(Color::GRAY);         // 3등
-            }
-            else {
-                ConsoleHelper::setColor(Color::DARK_GRAY);    // 나머지
-            }
-
-            if (i + 1 < 10)
-                std::cout << (i + 1) << ". " << std::setw(3) << " ";
-            else
-                std::cout << std::setw(2) << (i + 1) << "." << std::setw(3) << " ";
-
-            std::string n = scores[i].name;
-            if (n.size() > 15) 
-                n = n.substr(0, 15);   // 너무 긴 이름은 잘라버리기
-            
-            std::cout << std::left << std::setw(17) << n;       // 이름 왼쪽 정렬
-            std::cout << std::right << std::setw(7) << scores[i].score; // 점수 오른쪽 정렬
-
-            bool isNew = (curName != nullptr && !marked &&
-                scores[i].name == *curName && scores[i].score == curScore);
-            if (isNew) {
-                std::cout << "  <- NEW!";
-                marked = true;
-            }
-        }
-
-        ConsoleHelper::setColor(Color::BLACK);
-    }
-
-    // [추가] 폭탄 스킬 사용 함수
+    /*
+     * [함수: useBomb]
+     * 설명: 현재 블록을 폭탄 아이템으로 교체합니다. (횟수 제한)
+     */
     void Game::useBomb() {
         // 1. 폭탄이 남아있고, 현재 이미 폭탄이 아닌 경우에만 사용 가능
         if (bombCount > 0 && currentBlock.getType() != BOMB_TYPE) {
@@ -1231,79 +460,6 @@ namespace Tetris {
             // 6. 폭탄 그리기
             drawGhost(false);
             currentBlock.draw();
-        }
-    }
-
-    // 0: Resume (계속), 1: Quit (나가기) 를 리턴함
-    int Game::drawPausePopup() {
-        ConsoleHelper::clear();
-
-        // 1. ASCII 아트 출력
-        std::string pauseArt[5] = {
-            "___________   __ __  ______ ____  ",
-            "\\____ \\__  \\ |  |  \\/  ___// __ \\ ",
-            "|  |_> > __ \\|  |  /\\___ \\\\  ___/ ",
-            "|   __(____  /____//____  >\\___  > ",
-            "|__|       \\/           \\/     \\/ "
-        };
-
-        int startX = 42;
-        int startY = 10; // 메뉴 공간 확보를 위해 조금 올림
-
-        ConsoleHelper::setColor(Color::RED);
-        for (int i = 0; i < 5; ++i) {
-            ConsoleHelper::gotoXY(startX, startY + i);
-            std::cout << pauseArt[i];
-        }
-
-        // 2. 메뉴 선택 로직
-        int menuIndex = 0; // 0: Resume, 1: Quit
-        int textX = startX + 10;
-        int textY = startY + 7;
-
-        while (true) {
-            // 메뉴 텍스트 그리기 (선택된 것만 강조)
-            ConsoleHelper::gotoXY(textX, textY);
-            if (menuIndex == 0) {
-                ConsoleHelper::setColor(Color::WHITE); // 선택됨 (흰색 & 화살표)
-                std::cout << "▶ [ RESUME ]";
-            }
-            else {
-                ConsoleHelper::setColor(Color::GRAY);  // 안 선택됨 (회색)
-                std::cout << "  [ RESUME ]";
-            }
-
-            ConsoleHelper::gotoXY(textX, textY + 2);
-            if (menuIndex == 1) {
-                ConsoleHelper::setColor(Color::WHITE);
-                std::cout << "▶ [ QUIT ]";
-            }
-            else {
-                ConsoleHelper::setColor(Color::GRAY);
-                std::cout << "  [ QUIT ]";
-            }
-
-            // 키 입력 대기
-            int key = _getch();
-
-            // 방향키 처리
-            if (key == 224) {
-                key = _getch(); // 실제 키 코드 읽기
-                if (key == 72) { // UP
-                    menuIndex = 0;
-                }
-                else if (key == 80) { // DOWN
-                    menuIndex = 1;
-                }
-            }
-            // 엔터키(13) 또는 스페이스바(32) -> 선택 완료
-            else if (key == 13 || key == 32) {
-                return menuIndex; // 0 또는 1 리턴
-            }
-            // P키 -> Resume과 동일 취급
-            else if (key == 'p' || key == 'P') {
-                return 0; // Resume
-            }
         }
     }
 }
