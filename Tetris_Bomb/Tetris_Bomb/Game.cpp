@@ -2,111 +2,111 @@
 #include "ConsoleHelper.h"
 #include "ShapeRepository.h"
 #include <iostream>
-#include <conio.h>   // _getch, _kbhit (ÀÔ·Â ´ë±â¿ë)
+#include <conio.h>   // _getch, _kbhit (ì…ë ¥ ëŒ€ê¸°ìš©)
 #include <ctime>     // time           
-#include <windows.h> // Sleep          (´ë±â ¾Ö´Ï¸ŞÀÌ¼Ç¿ë)
-#include <string>    // string         (¹®ÀÚ¿­ Ã³¸®¿ë)
+#include <windows.h> // Sleep          (ëŒ€ê¸° ì• ë‹ˆë©”ì´ì…˜ìš©)
+#include <string>    // string         (ë¬¸ìì—´ ì²˜ë¦¬ìš©)
 
 /*
- * ÆÄÀÏ¸í: Game.cpp
- * ¼³¸í: Tetris °ÔÀÓÀÇ ÇÙ½É ·ÎÁ÷À» ´ã´çÇÏ´Â ÆÄÀÏÀÔ´Ï´Ù.
- * °ÔÀÓ Èå¸§ Á¦¾î, Å° ÀÔ·Â Ã³¸®, ºí·Ï ÀÌµ¿ ¹× Ãæµ¹ °è»ê µîÀÌ Æ÷ÇÔµË´Ï´Ù.
- * (È­¸é Ãâ·Â °ü·Ã ÄÚµå´Â Game_UI.cpp¿¡ ÀÖ½À´Ï´Ù.)
+ * íŒŒì¼ëª…: Game.cpp
+ * ì„¤ëª…: Tetris ê²Œì„ì˜ í•µì‹¬ ë¡œì§ì„ ë‹´ë‹¹í•˜ëŠ” íŒŒì¼ì…ë‹ˆë‹¤.
+ * ê²Œì„ íë¦„ ì œì–´, í‚¤ ì…ë ¥ ì²˜ë¦¬, ë¸”ë¡ ì´ë™ ë° ì¶©ëŒ ê³„ì‚° ë“±ì´ í¬í•¨ë©ë‹ˆë‹¤.
+ * (í™”ë©´ ì¶œë ¥ ê´€ë ¨ ì½”ë“œëŠ” Game_UI.cppì— ìˆìŠµë‹ˆë‹¤.)
  
   ===========================================================================
-    [Game.cpp ÇÔ¼ö ¸ñÂ÷ (Function Index)]
+    [Game.cpp í•¨ìˆ˜ ëª©ì°¨ (Function Index)]
 
-    1. Game::Game (»ı¼ºÀÚ) .................... Line 34
-    2. Game::run (¸ŞÀÎ ·çÇÁ) .................. Line 47
-    3. Game::initStages (³­ÀÌµµ ¼³Á¤) ......... Line 124
-    4. Game::resetGame (ÃÊ±âÈ­) ............... Line 144
-    5. Game::makeNewBlockType (ºí·Ï »ı¼º) ..... Line 158
-    6. Game::spawnNextBlock (´ÙÀ½ ºí·Ï) ....... Line 174
-    7. Game::handleInput (Å° ÀÔ·Â) ............ Line 196
-    8. Game::moveDown (ÇÏ°­ ·ÎÁ÷) ............. Line 294
-    9. Game::moveSide (ÁÂ¿ì ÀÌµ¿) ............. Line 388
-   10. Game::rotateBlock (È¸Àü) ............... Line 410
-   11. Game::useBomb (ÆøÅº ½ºÅ³) .............. Line 438
+    1. Game::Game (ìƒì„±ì) .................... Line 34
+    2. Game::run (ë©”ì¸ ë£¨í”„) .................. Line 47
+    3. Game::initStages (ë‚œì´ë„ ì„¤ì •) ......... Line 124
+    4. Game::resetGame (ì´ˆê¸°í™”) ............... Line 144
+    5. Game::makeNewBlockType (ë¸”ë¡ ìƒì„±) ..... Line 158
+    6. Game::spawnNextBlock (ë‹¤ìŒ ë¸”ë¡) ....... Line 174
+    7. Game::handleInput (í‚¤ ì…ë ¥) ............ Line 196
+    8. Game::moveDown (í•˜ê°• ë¡œì§) ............. Line 294
+    9. Game::moveSide (ì¢Œìš° ì´ë™) ............. Line 388
+   10. Game::rotateBlock (íšŒì „) ............... Line 410
+   11. Game::useBomb (í­íƒ„ ìŠ¤í‚¬) .............. Line 438
   ===========================================================================
   */
 
 namespace Tetris {
     /*
-     * [Game »ı¼ºÀÚ]
-     * ¼³¸í: °ÔÀÓ¿¡ ÇÊ¿äÇÑ º¯¼öµéÀ» ÃÊ±âÈ­ÇÏ°í ³­ÀÌµµ µ¥ÀÌÅÍ¸¦ ¼³Á¤ÇÕ´Ï´Ù.
-     * ·£´ı ½Ãµå°ª »ı¼ºµµ ¿©±â¼­ ¼öÇàÇÕ´Ï´Ù.
+     * [Game ìƒì„±ì]
+     * ì„¤ëª…: ê²Œì„ì— í•„ìš”í•œ ë³€ìˆ˜ë“¤ì„ ì´ˆê¸°í™”í•˜ê³  ë‚œì´ë„ ë°ì´í„°ë¥¼ ì„¤ì •í•©ë‹ˆë‹¤.
+     * ëœë¤ ì‹œë“œê°’ ìƒì„±ë„ ì—¬ê¸°ì„œ ìˆ˜í–‰í•©ë‹ˆë‹¤.
      */
     Game::Game() 
         : level(0), score(0), totalLines(0), gameOver(false), 
-        bombCount(3), savedBlockForBomb(-1), shouldExitToTitle(false)  // [Ãß°¡] ÃÊ±âÈ­
+        bombCount(3), savedBlockForBomb(-1), shouldExitToTitle(false)  // [ì¶”ê°€] ì´ˆê¸°í™”
     {
         srand(static_cast<unsigned>(time(NULL)));
         initStages();
     }
 
     /*
-     * [ÇÔ¼ö: run]
-     * ¼³¸í: °ÔÀÓÀÇ ÀüÃ¼ »ı¸íÁÖ±â¸¦ °ü¸®ÇÏ´Â ¸ŞÀÎ ·çÇÁÀÔ´Ï´Ù.
-     * ÀÎÆ®·Î -> (ÃÊ±âÈ­ -> ·¹º§¼±ÅÃ -> ÀÎ°ÔÀÓ ·çÇÁ) °úÁ¤À» ¹İº¹ÇÕ´Ï´Ù.
-     * ·¹º§ ¼±ÅÃ¿¡¼­ Á¾·á(-1) ½ÅÈ£¸¦ ¹ŞÀ¸¸é ·çÇÁ¸¦ Å»ÃâÇÕ´Ï´Ù.
+     * [í•¨ìˆ˜: run]
+     * ì„¤ëª…: ê²Œì„ì˜ ì „ì²´ ìƒëª…ì£¼ê¸°ë¥¼ ê´€ë¦¬í•˜ëŠ” ë©”ì¸ ë£¨í”„ì…ë‹ˆë‹¤.
+     * ì¸íŠ¸ë¡œ -> (ì´ˆê¸°í™” -> ë ˆë²¨ì„ íƒ -> ì¸ê²Œì„ ë£¨í”„) ê³¼ì •ì„ ë°˜ë³µí•©ë‹ˆë‹¤.
+     * ë ˆë²¨ ì„ íƒì—ì„œ ì¢…ë£Œ(-1) ì‹ í˜¸ë¥¼ ë°›ìœ¼ë©´ ë£¨í”„ë¥¼ íƒˆì¶œí•©ë‹ˆë‹¤.
      */
     void Game::run() {
-        // 1. °ÔÀÓ ÃÊ±â ¼³Á¤
+        // 1. ê²Œì„ ì´ˆê¸° ì„¤ì •
         ConsoleHelper::cursorVisible(false);
         showLogo();
 
         while (true) {
-            // 2. ¸Å °ÔÀÓ¸¶´Ù ÃÊ±âÈ­ ¹× ·¹º§ ¼±ÅÃ
+            // 2. ë§¤ ê²Œì„ë§ˆë‹¤ ì´ˆê¸°í™” ë° ë ˆë²¨ ì„ íƒ
             resetGame();
             selectLevel();
 
-            // [Á¾·á Ã¼Å©] ·¹º§ ¼±ÅÃ¿¡¼­ 'Q'(-1)¸¦ ´©¸£¸é Á¾·á
+            // [ì¢…ë£Œ ì²´í¬] ë ˆë²¨ ì„ íƒì—ì„œ 'Q'(-1)ë¥¼ ëˆ„ë¥´ë©´ ì¢…ë£Œ
             if (level == -1) {
-                showGoodBye(); // Á¾·á È­¸é Ãâ·Â
-                break;         // ÇÁ·Î±×·¥ Á¾·á
+                showGoodBye(); // ì¢…ë£Œ í™”ë©´ ì¶œë ¥
+                break;         // í”„ë¡œê·¸ë¨ ì¢…ë£Œ
             }
 
-            // 3. °ÔÀÓ ÇÃ·¹ÀÌ ÁØºñ
+            // 3. ê²Œì„ í”Œë ˆì´ ì¤€ë¹„
             ConsoleHelper::clear();
             board.setLevel(level);
             board.reset();
             heldBlockType = -1;
             canHold = true;
-            board.draw(); // º¸µå ±×¸®±â
+            board.draw(); // ë³´ë“œ ê·¸ë¦¬ê¸°
 
-            // Ã¹ ºí·Ï »ı¼º ¹× UI ÃÊ±âÈ­
+            // ì²« ë¸”ë¡ ìƒì„± ë° UI ì´ˆê¸°í™”
             nextBlockType = makeNewBlockType();
             spawnNextBlock();
             showStats();
             showNextBlockPreview();
 
             // -------------------------------------------------------
-            // [ÀÎ°ÔÀÓ ·çÇÁ] ÇÁ·¹ÀÓ ´ÜÀ§·Î °ÔÀÓ ·ÎÁ÷À» ½ÇÇàÇÕ´Ï´Ù.
+            // [ì¸ê²Œì„ ë£¨í”„] í”„ë ˆì„ ë‹¨ìœ„ë¡œ ê²Œì„ ë¡œì§ì„ ì‹¤í–‰í•©ë‹ˆë‹¤.
             // -------------------------------------------------------
             int frameCount = 0;
             while (!gameOver) {
-                // (1) Å° ÀÔ·Â Ã³¸®
+                // (1) í‚¤ ì…ë ¥ ì²˜ë¦¬
                 handleInput();
 
-                // (2) °­Á¦ Á¾·á Ã¼Å© (ÀÏ½ÃÁ¤Áö ¸Ş´º¿¡¼­ Quit ¼±ÅÃ ½Ã)
+                // (2) ê°•ì œ ì¢…ë£Œ ì²´í¬ (ì¼ì‹œì •ì§€ ë©”ë‰´ì—ì„œ Quit ì„ íƒ ì‹œ)
                 if (shouldExitToTitle) {
                     break;
                 }
 
-                // (3) ÀÏ½ÃÁ¤Áö Ã¼Å© (handleInput ³»ºÎ¿¡¼­ Ã³¸®µÇÁö¸¸ ¾ÈÀüÀåÄ¡ À¯Áö)
+                // (3) ì¼ì‹œì •ì§€ ì²´í¬ (handleInput ë‚´ë¶€ì—ì„œ ì²˜ë¦¬ë˜ì§€ë§Œ ì•ˆì „ì¥ì¹˜ ìœ ì§€)
                 if (isPaused) {
                     Sleep(15);
                     continue;
                 }
 
-                // (4) ºí·Ï ÀÚµ¿ ÇÏ°­ (¼Óµµ Á¶Àı)
+                // (4) ë¸”ë¡ ìë™ í•˜ê°• (ì†ë„ ì¡°ì ˆ)
                 if (frameCount % stages[level].speed == 0) {
                     moveDown();
                 }
 
-                // (5) °ÔÀÓ ¿À¹ö Ã¼Å©
+                // (5) ê²Œì„ ì˜¤ë²„ ì²´í¬
                 if (gameOver) {
-                    // °­Á¦ Á¾·á°¡ ¾Æ´Ò ¶§¸¸ °á°úÃ¢ ¹× ·©Å· ÀúÀå
+                    // ê°•ì œ ì¢…ë£Œê°€ ì•„ë‹ ë•Œë§Œ ê²°ê³¼ì°½ ë° ë­í‚¹ ì €ì¥
                     if (!shouldExitToTitle) {
                         showGameOver();
                         promptNameAndSaveScore();
@@ -114,7 +114,7 @@ namespace Tetris {
                     break;
                 }
 
-                // (6) ÇÁ·¹ÀÓ ´ë±â ¹× Ä«¿îÆ®
+                // (6) í”„ë ˆì„ ëŒ€ê¸° ë° ì¹´ìš´íŠ¸
                 Sleep(15);
                 frameCount++;
             }
@@ -122,11 +122,11 @@ namespace Tetris {
     }
 
     /*
-     * [ÇÔ¼ö: initStages]
-     * ¼³¸í: °¢ ·¹º§º° ³­ÀÌµµ µ¥ÀÌÅÍ(¼Óµµ, È®·ü µî)¸¦ ÃÊ±âÈ­ÇÕ´Ï´Ù.
+     * [í•¨ìˆ˜: initStages]
+     * ì„¤ëª…: ê° ë ˆë²¨ë³„ ë‚œì´ë„ ë°ì´í„°(ì†ë„, í™•ë¥  ë“±)ë¥¼ ì´ˆê¸°í™”í•©ë‹ˆë‹¤.
      */
     void Game::initStages() {
-        // { ³«ÇÏ ¼Óµµ(³·À»¼ö·Ï ºü¸§) , ±ä ¸·´ë±â È¹µæ È®·ü , ·¹º§¾÷ Á¶°Ç ÁÙ ¼ö }
+        // { ë‚™í•˜ ì†ë„(ë‚®ì„ìˆ˜ë¡ ë¹ ë¦„) , ê¸´ ë§‰ëŒ€ê¸° íšë“ í™•ë¥  , ë ˆë²¨ì—… ì¡°ê±´ ì¤„ ìˆ˜ }
         stages = {
             {40, 20, 10}, 
             {38, 18, 12}, 
@@ -142,29 +142,29 @@ namespace Tetris {
     }
 
     /*
-     * [ÇÔ¼ö: resetGame]
-     * ¼³¸í: »õ °ÔÀÓÀ» ½ÃÀÛÇÏ±â À§ÇØ Á¡¼ö, »óÅÂ º¯¼öµéÀ» ¸®¼ÂÇÕ´Ï´Ù.
+     * [í•¨ìˆ˜: resetGame]
+     * ì„¤ëª…: ìƒˆ ê²Œì„ì„ ì‹œì‘í•˜ê¸° ìœ„í•´ ì ìˆ˜, ìƒíƒœ ë³€ìˆ˜ë“¤ì„ ë¦¬ì…‹í•©ë‹ˆë‹¤.
      */
     void Game::resetGame() {
         score = 0;
         totalLines = 0;
         gameOver = false;
-        bombCount = 3;              // °ÔÀÓ ¸®¼Â ½Ã ÆøÅº 3°³ ÃæÀü
+        bombCount = 3;              // ê²Œì„ ë¦¬ì…‹ ì‹œ í­íƒ„ 3ê°œ ì¶©ì „
         savedBlockForBomb = -1;
-        shouldExitToTitle = false;  // »õ °ÔÀÓ ½ÃÀÛÇÒ ¶§ '³ª°¡±â »óÅÂ'¸¦ ÇØÁ¦
-        isPaused = false;           // È¤½Ã ¸ğ¸£´Ï ÀÏ½ÃÁ¤Áö »óÅÂµµ È®½ÇÈ÷ ²¨µÒ
+        shouldExitToTitle = false;  // ìƒˆ ê²Œì„ ì‹œì‘í•  ë•Œ 'ë‚˜ê°€ê¸° ìƒíƒœ'ë¥¼ í•´ì œ
+        isPaused = false;           // í˜¹ì‹œ ëª¨ë¥´ë‹ˆ ì¼ì‹œì •ì§€ ìƒíƒœë„ í™•ì‹¤íˆ êº¼ë‘ 
 
     }
 
     /*
-     * [ÇÔ¼ö: makeNewBlockType]
-     * ¼³¸í: È®·ü¿¡ µû¶ó »õ·Î¿î ºí·ÏÀÇ Å¸ÀÔ(¹øÈ£)À» »ı¼ºÇÕ´Ï´Ù.
-     * ¸®ÅÏ: »ı¼ºµÈ ºí·Ï Å¸ÀÔ ID (0~6, È¤Àº 7:ÆøÅº)
+     * [í•¨ìˆ˜: makeNewBlockType]
+     * ì„¤ëª…: í™•ë¥ ì— ë”°ë¼ ìƒˆë¡œìš´ ë¸”ë¡ì˜ íƒ€ì…(ë²ˆí˜¸)ì„ ìƒì„±í•©ë‹ˆë‹¤.
+     * ë¦¬í„´: ìƒì„±ëœ ë¸”ë¡ íƒ€ì… ID (0~6, í˜¹ì€ 7:í­íƒ„)
      */
     int Game::makeNewBlockType() {
         int rnd = rand() % 100;
 
-        // ½ºÅ×ÀÌÁö ¼³Á¤¿¡ µû¶ó ±ä ¸·´ë±â(Type 0) È®·ü Á¶Á¤
+        // ìŠ¤í…Œì´ì§€ ì„¤ì •ì— ë”°ë¼ ê¸´ ë§‰ëŒ€ê¸°(Type 0) í™•ë¥  ì¡°ì •
         if (rnd <= stages[level].stickRate) 
             return 0;
 
@@ -172,16 +172,16 @@ namespace Tetris {
     }
 
     /*
-     * [ÇÔ¼ö: spawnNextBlock]
-     * ¼³¸í: ´ë±â ÁßÀÌ´ø Next ºí·ÏÀ» ÇöÀç ºí·ÏÀ¸·Î °¡Á®¿À°í,
-     * »õ·Î¿î Next ºí·ÏÀ» »ı¼ºÇÕ´Ï´Ù. °ü·Ã UIµµ °»½ÅÇÕ´Ï´Ù.
+     * [í•¨ìˆ˜: spawnNextBlock]
+     * ì„¤ëª…: ëŒ€ê¸° ì¤‘ì´ë˜ Next ë¸”ë¡ì„ í˜„ì¬ ë¸”ë¡ìœ¼ë¡œ ê°€ì ¸ì˜¤ê³ ,
+     * ìƒˆë¡œìš´ Next ë¸”ë¡ì„ ìƒì„±í•©ë‹ˆë‹¤. ê´€ë ¨ UIë„ ê°±ì‹ í•©ë‹ˆë‹¤.
      */
     void Game::spawnNextBlock() {
         currentBlock.spawn(nextBlockType);
         nextBlockType = makeNewBlockType();
 
         showNextBlockPreview();
-        canHold = true;      // È¦µå ±â´É »ç¿ë °¡´É »óÅÂ·Î ¸®¼Â
+        canHold = true;      // í™€ë“œ ê¸°ëŠ¥ ì‚¬ìš© ê°€ëŠ¥ ìƒíƒœë¡œ ë¦¬ì…‹
         showHoldBlock();
         
         drawGhost(false);
@@ -189,15 +189,15 @@ namespace Tetris {
     }
     
     /*
-     * [ÇÔ¼ö: handleInput]
-     * ¼³¸í: »ç¿ëÀÚ Å°º¸µå ÀÔ·ÂÀ» °¨ÁöÇÏ°í ÇØ´ç µ¿ÀÛÀ» ¼öÇàÇÕ´Ï´Ù.
-     * (ÀÌµ¿, È¸Àü, ½ºÅ³, ÀÏ½ÃÁ¤Áö µî)
+     * [í•¨ìˆ˜: handleInput]
+     * ì„¤ëª…: ì‚¬ìš©ì í‚¤ë³´ë“œ ì…ë ¥ì„ ê°ì§€í•˜ê³  í•´ë‹¹ ë™ì‘ì„ ìˆ˜í–‰í•©ë‹ˆë‹¤.
+     * (ì´ë™, íšŒì „, ìŠ¤í‚¬, ì¼ì‹œì •ì§€ ë“±)
      */
     void Game::handleInput() {
         if (_kbhit()) {
             int key = _getch();
 
-            // Æ¯¼öÅ° (¹æÇâÅ°) Ã³¸®
+            // íŠ¹ìˆ˜í‚¤ (ë°©í–¥í‚¤) ì²˜ë¦¬
             if (key == 0xE0 || key == 0) {
                 key = _getch();
                 if (isPaused) return;
@@ -209,66 +209,66 @@ namespace Tetris {
                 case static_cast<int>(Key::DOWN): moveDown(); break;
                 }
             }
-            // ÀÏ¹İ Å° Ã³¸®
+            // ì¼ë°˜ í‚¤ ì²˜ë¦¬
             else {
-                // C Å°: È¦µå
+                // C í‚¤: í™€ë“œ
                 if (key == 'c' || key == 'C') {
-                    // 1. ÀÌ¹ø ÅÏ¿¡ ÀÌ¹Ì ½è´Ù¸é ¹«½Ã
+                    // 1. ì´ë²ˆ í„´ì— ì´ë¯¸ ì¼ë‹¤ë©´ ë¬´ì‹œ
                     if (!canHold) return;
 
                     if (heldBlockType != -1 && heldBlockType == currentBlock.getType()) {
                         return;
                     }
 
-                    // 2. ÇöÀç È­¸é¿¡ ÀÖ´Â ºí·Ï Áö¿ì±â (Áß¿ä: ¾È Áö¿ì¸é ÀÜ»ó ³²À½)
+                    // 2. í˜„ì¬ í™”ë©´ì— ìˆëŠ” ë¸”ë¡ ì§€ìš°ê¸° (ì¤‘ìš”: ì•ˆ ì§€ìš°ë©´ ì”ìƒ ë‚¨ìŒ)
                     currentBlock.draw(true);
                     drawGhost(true);
 
-                    // È¦µå ·ÎÁ÷: ÀúÀåµÈ ºí·ÏÀÌ ¾øÀ¸¸é ³Ö°í, ÀÖÀ¸¸é ±³Ã¼
+                    // í™€ë“œ ë¡œì§: ì €ì¥ëœ ë¸”ë¡ì´ ì—†ìœ¼ë©´ ë„£ê³ , ìˆìœ¼ë©´ êµì²´
                     if (heldBlockType == -1) {
-                        // Case A: ÅµµÈ ºí·ÏÀÌ ¾øÀ» ¶§
-                        heldBlockType = currentBlock.getType(); // ÇöÀç ºí·Ï ÀúÀå
-                        spawnNextBlock();                       // ´ÙÀ½ ºí·ÏÀ» ÇöÀç ºí·ÏÀ¸·Î °¡Á®¿È
+                        // Case A: í‚µëœ ë¸”ë¡ì´ ì—†ì„ ë•Œ
+                        heldBlockType = currentBlock.getType(); // í˜„ì¬ ë¸”ë¡ ì €ì¥
+                        spawnNextBlock();                       // ë‹¤ìŒ ë¸”ë¡ì„ í˜„ì¬ ë¸”ë¡ìœ¼ë¡œ ê°€ì ¸ì˜´
                     }
                     else {
-                        // Case B: Åµ µÈ°Ô ÀÖÀ» ¶§ (¼­·Î ±³Ã¼)
+                        // Case B: í‚µ ëœê²Œ ìˆì„ ë•Œ (ì„œë¡œ êµì²´)
                         int tempType = currentBlock.getType();
 
-                        currentBlock.spawn(heldBlockType);      // ÀúÀåµÈ Å¸ÀÔÀ¸·Î ÇöÀç ºí·Ï Àç»ı¼º (À§Ä¡, °¢µµ ÃÊ±âÈ­)
-                        heldBlockType = tempType;               // ÇöÀç Å¸ÀÔÀ» ÀúÀå¼Ò·Î
+                        currentBlock.spawn(heldBlockType);      // ì €ì¥ëœ íƒ€ì…ìœ¼ë¡œ í˜„ì¬ ë¸”ë¡ ì¬ìƒì„± (ìœ„ì¹˜, ê°ë„ ì´ˆê¸°í™”)
+                        heldBlockType = tempType;               // í˜„ì¬ íƒ€ì…ì„ ì €ì¥ì†Œë¡œ
                     }
-                    canHold = false; // ÀÌ¹ø ÅÏ¿¡´Â ´Ù½Ã »ç¿ë ºÒ°¡
+                    canHold = false; // ì´ë²ˆ í„´ì—ëŠ” ë‹¤ì‹œ ì‚¬ìš© ë¶ˆê°€
 
-                    // 3. º¯°æµÈ »óÅÂ ¹İ¿µÇÏ¿© UI °»½Å
-                    showHoldBlock();        // ¿ŞÂÊ È¦µåÃ¢ °»½Å
-                    showNextBlockPreview(); // (Case AÀÏ °æ¿ì ÇÊ¿ä)
-                    currentBlock.draw();    // ÇöÀç ºí·Ï ´Ù½Ã ±×¸®±â
+                    // 3. ë³€ê²½ëœ ìƒíƒœ ë°˜ì˜í•˜ì—¬ UI ê°±ì‹ 
+                    showHoldBlock();        // ì™¼ìª½ í™€ë“œì°½ ê°±ì‹ 
+                    showNextBlockPreview(); // (Case Aì¼ ê²½ìš° í•„ìš”)
+                    currentBlock.draw();    // í˜„ì¬ ë¸”ë¡ ë‹¤ì‹œ ê·¸ë¦¬ê¸°
 
-                    return; // ÀÔ·Â Ã³¸® ¿Ï·á
+                    return; // ì…ë ¥ ì²˜ë¦¬ ì™„ë£Œ
                 }
 
-                // P Å°: ÀÏ½Ã Á¤Áö (¸Ş´º È£Ãâ)
+                // P í‚¤: ì¼ì‹œ ì •ì§€ (ë©”ë‰´ í˜¸ì¶œ)
                 if (key == 'p' || key == 'P') {
                     isPaused = true;
 
-                    // ÆË¾÷ ÇÔ¼ö È£Ãâ, °á°ú ¹İÈ¯
+                    // íŒì—… í•¨ìˆ˜ í˜¸ì¶œ, ê²°ê³¼ ë°˜í™˜
                     int choice = drawPausePopup();
                     
-                    // [¼±ÅÃ 1] ³ª°¡±â Quit ¼±ÅÃ ½Ã
+                    // [ì„ íƒ 1] ë‚˜ê°€ê¸° Quit ì„ íƒ ì‹œ
                     if (choice == 1) {
-                        isPaused = false;          // »óÅÂ ÃÊ±âÈ­ 
-                        shouldExitToTitle = true;  // Å¸ÀÌÆ²·Î °£´Ù°í Ç¥½Ã
-                        gameOver = true;           // °ÔÀÓ ·çÇÁ Á¾·á½ÃÅ°±â
+                        isPaused = false;          // ìƒíƒœ ì´ˆê¸°í™” 
+                        shouldExitToTitle = true;  // íƒ€ì´í‹€ë¡œ ê°„ë‹¤ê³  í‘œì‹œ
+                        gameOver = true;           // ê²Œì„ ë£¨í”„ ì¢…ë£Œì‹œí‚¤ê¸°
                         return;     
                     }
 
-                    // [¼±ÅÃ 0] °è¼ÓÇÏ±â(Resume) ¼±ÅÃ ½Ã -> ±âÁ¸ º¹±¸ ·ÎÁ÷ ½ÇÇà
+                    // [ì„ íƒ 0] ê³„ì†í•˜ê¸°(Resume) ì„ íƒ ì‹œ -> ê¸°ì¡´ ë³µêµ¬ ë¡œì§ ì‹¤í–‰
                     isPaused = false;
-                    ConsoleHelper::clear(); // pause Ã¢ Áö¿ì±â
-                    board.draw();           // a. ¸ğµå
-                    showStats();            // b. Á¡¼ö, ·¹º§, ÆøÅº
-                    showNextBlockPreview(); // c. ´ÙÀ½ ºí·Ï UI
-                    showHoldBlock();        // d. È¦µå UI
+                    ConsoleHelper::clear(); // pause ì°½ ì§€ìš°ê¸°
+                    board.draw();           // a. ëª¨ë“œ
+                    showStats();            // b. ì ìˆ˜, ë ˆë²¨, í­íƒ„
+                    showNextBlockPreview(); // c. ë‹¤ìŒ ë¸”ë¡ UI
+                    showHoldBlock();        // d. í™€ë“œ UI
                     drawGhost(false);
                     currentBlock.draw();
                     isPaused = false;
@@ -276,47 +276,47 @@ namespace Tetris {
                     return;
                 }
 
-                // B Å°: ÆøÅº ½ºÅ³
+                // B í‚¤: í­íƒ„ ìŠ¤í‚¬
                 if (key == 'b' || key == 'B') {
                     if (!isPaused) useBomb();
                     return;
                 }
 
-                // Space Å°: ÇÏµå µå·Ó (¹Ù´Ú±îÁö Áï½Ã ÀÌµ¿)
-                if (isPaused) return;       // ÀÏ½ÃÁ¤Áö ÁßÀÌ¸é ´Ù¸¥ ÀÏ¹İ Å°(½ºÆäÀÌ½º¹Ù µî) ¹«½Ã
+                // Space í‚¤: í•˜ë“œ ë“œë¡­ (ë°”ë‹¥ê¹Œì§€ ì¦‰ì‹œ ì´ë™)
+                if (isPaused) return;       // ì¼ì‹œì •ì§€ ì¤‘ì´ë©´ ë‹¤ë¥¸ ì¼ë°˜ í‚¤(ìŠ¤í˜ì´ìŠ¤ë°” ë“±) ë¬´ì‹œ
                 if (key == static_cast<int>(Key::SPACE)) {
-                    while (moveDown());     // ¹Ù´Ú¿¡ ´êÀ» ¶§±îÁö °è¼Ó ³»¸²
+                    while (moveDown());     // ë°”ë‹¥ì— ë‹¿ì„ ë•Œê¹Œì§€ ê³„ì† ë‚´ë¦¼
                 }
             }
         }
     }
 
     /*
-     * [ÇÔ¼ö: moveDown]
-     * ¼³¸í: ºí·ÏÀ» ÇÑ Ä­ ¾Æ·¡·Î ÀÌµ¿½ÃÅµ´Ï´Ù.
-     * ¹Ù´ÚÀÌ³ª ´Ù¸¥ ºí·Ï¿¡ ´ê¾ÒÀ» °æ¿ì °íÁ¤(Merge) ¹× ÁÙ »èÁ¦ Ã³¸®¸¦ ÇÕ´Ï´Ù.
-     * ¸®ÅÏ: true = ÀÌµ¿ ¼º°ø, false = ¹Ù´Ú¿¡ ´ê¾Æ¼­ ¸ØÃã(°íÁ¤µÊ)
+     * [í•¨ìˆ˜: moveDown]
+     * ì„¤ëª…: ë¸”ë¡ì„ í•œ ì¹¸ ì•„ë˜ë¡œ ì´ë™ì‹œí‚µë‹ˆë‹¤.
+     * ë°”ë‹¥ì´ë‚˜ ë‹¤ë¥¸ ë¸”ë¡ì— ë‹¿ì•˜ì„ ê²½ìš° ê³ ì •(Merge) ë° ì¤„ ì‚­ì œ ì²˜ë¦¬ë¥¼ í•©ë‹ˆë‹¤.
+     * ë¦¬í„´: true = ì´ë™ ì„±ê³µ, false = ë°”ë‹¥ì— ë‹¿ì•„ì„œ ë©ˆì¶¤(ê³ ì •ë¨)
      */
     bool Game::moveDown() {
-        // 1. Ãæµ¹ Ã¼Å© (¹Ì¸® ÇÑ Ä­ ¾Æ·¡¸¦ È®ÀÎ)
+        // 1. ì¶©ëŒ ì²´í¬ (ë¯¸ë¦¬ í•œ ì¹¸ ì•„ë˜ë¥¼ í™•ì¸)
         if (board.checkCollision(currentBlock, currentBlock.x, currentBlock.y + 1, currentBlock.angle)) {
-            drawGhost(true);        // ºí·ÏÀÌ ±»±â Á÷Àü¿¡, ±×·ÁÁ® ÀÖ´ø °í½ºÆ®¸¦ Áö¿öÁİ´Ï´Ù.
-            currentBlock.draw();    // ÃÖÁ¾ À§Ä¡ ±×¸®±â
+            drawGhost(true);        // ë¸”ë¡ì´ êµ³ê¸° ì§ì „ì—, ê·¸ë ¤ì ¸ ìˆë˜ ê³ ìŠ¤íŠ¸ë¥¼ ì§€ì›Œì¤ë‹ˆë‹¤.
+            currentBlock.draw();    // ìµœì¢… ìœ„ì¹˜ ê·¸ë¦¬ê¸°
 
-            // ÃµÀå¿¡ ´ê¾ÒÀ¸¸é °ÔÀÓ ¿À¹ö
+            // ì²œì¥ì— ë‹¿ì•˜ìœ¼ë©´ ê²Œì„ ì˜¤ë²„
             if (currentBlock.y < 0) {
                 gameOver = true;
                 return false;
             }
 
-            // [ÆøÅº ºí·Ï Ã³¸®] ÆøÅºÀÎ °æ¿ì
+            // [í­íƒ„ ë¸”ë¡ ì²˜ë¦¬] í­íƒ„ì¸ ê²½ìš°
             if (currentBlock.getType() == BOMB_TYPE) {
-                // (1) ÆøÅº Æø¹ß
-                // ÆøÅºÀÇ Áß½É ÁÂÇ¥ °è»ê (BlockÀÇ x, y´Â 4x4 ¹Ú½ºÀÇ ÁÂ»ó´Ü)
-                // ÆøÅº ¸ğ¾çÀÌ (1, 1)¿¡ Á¡ÀÌ ÀÖÀ¸¹Ç·Î. ½ÇÁ¦ ÁÂÇ¥´Â x+1, y+1
+                // (1) í­íƒ„ í­ë°œ
+                // í­íƒ„ì˜ ì¤‘ì‹¬ ì¢Œí‘œ ê³„ì‚° (Blockì˜ x, yëŠ” 4x4 ë°•ìŠ¤ì˜ ì¢Œìƒë‹¨)
+                // í­íƒ„ ëª¨ì–‘ì´ (1, 1)ì— ì ì´ ìˆìœ¼ë¯€ë¡œ. ì‹¤ì œ ì¢Œí‘œëŠ” x+1, y+1
                 int destroyed = board.explode(currentBlock.x + 1, currentBlock.y + 1);
 
-                // Á¡¼ö ±ÔÄ¢: ºí·Ï ºñ·Ê º¸³Ê½º
+                // ì ìˆ˜ ê·œì¹™: ë¸”ë¡ ë¹„ë¡€ ë³´ë„ˆìŠ¤
                 if (destroyed > 0) {
                     if (destroyed <= 3)
                         score += destroyed * 30;
@@ -326,109 +326,109 @@ namespace Tetris {
                         score += destroyed * 90;
                 }
 
-                // (2) ÀúÀåÇØµ×´ø ¿ø·¡ ºí·ÏÀ» ´Ù½Ã ¼ÒÈ¯ (Next ºí·ÏÀ» ¼Ò¸ğÇÏÁö ¾ÊÀ½)
+                // (2) ì €ì¥í•´ë’€ë˜ ì›ë˜ ë¸”ë¡ì„ ë‹¤ì‹œ ì†Œí™˜ (Next ë¸”ë¡ì„ ì†Œëª¨í•˜ì§€ ì•ŠìŒ)
                 if (savedBlockForBomb != -1) {
                     currentBlock.spawn(savedBlockForBomb);
-                    savedBlockForBomb = -1; // ÀúÀå¼Ò ÃÊ±âÈ­
+                    savedBlockForBomb = -1; // ì €ì¥ì†Œ ì´ˆê¸°í™”
 
-                    // ¼ÒÈ¯µÈ ¿ø·¡ ºí·Ï ±×¸®±â
+                    // ì†Œí™˜ëœ ì›ë˜ ë¸”ë¡ ê·¸ë¦¬ê¸°
                     drawGhost(false);
                     currentBlock.draw();
 
-                    return false;           // ÀÌ¹ø Æ½ Á¾·á (¹Ù·Î ³»·Á°¡Áö ¾ÊÀ½)
+                    return false;           // ì´ë²ˆ í‹± ì¢…ë£Œ (ë°”ë¡œ ë‚´ë ¤ê°€ì§€ ì•ŠìŒ)
                 }
             } 
             else 
-                board.merge(currentBlock);  // ÀÏ¹İ ºí·Ï °íÁ¤
+                board.merge(currentBlock);  // ì¼ë°˜ ë¸”ë¡ ê³ ì •
 
-            // ÁÙ »èÁ¦ Ã³¸®
+            // ì¤„ ì‚­ì œ ì²˜ë¦¬
             int lines = board.processFullLines();
 
             if (lines == 0) 
-                board.draw();   // ÁÙ »èÁ¦ ¾ø¾îµµ È­¸é °»½Å
+                board.draw();   // ì¤„ ì‚­ì œ ì—†ì–´ë„ í™”ë©´ ê°±ì‹ 
             
             if (lines > 0) {
                 totalLines += lines;
-                // Á¡¼ö °è»ê (±âº» Á¡¼ö + ·¹º§ °¡ÁßÄ¡)
+                // ì ìˆ˜ ê³„ì‚° (ê¸°ë³¸ ì ìˆ˜ + ë ˆë²¨ ê°€ì¤‘ì¹˜)
                 for (int k = 0; k < lines; k++) 
                     score += 100 + (level * 10) + (rand() % 10);
 
-                // ·¹º§¾÷ Ã¼Å©
+                // ë ˆë²¨ì—… ì²´í¬
                 if (totalLines >= stages[level].clearLineGoal) {
                     totalLines = 0;
                     if (level < 9) level++;
                     board.setLevel(level);
-                    board.draw();   // ·¹º§¾÷ ½Ã º® »ö»ó º¯°æ ¹İ¿µ
+                    board.draw();   // ë ˆë²¨ì—… ì‹œ ë²½ ìƒ‰ìƒ ë³€ê²½ ë°˜ì˜
                 }
                 showStats();
             }
 
-            // ´ÙÀ½ ºí·Ï ¼ÒÈ¯
+            // ë‹¤ìŒ ë¸”ë¡ ì†Œí™˜
             spawnNextBlock();
 
-            // UI ¾ÈÀü °»½Å
+            // UI ì•ˆì „ ê°±ì‹ 
             drawGhost(false);
             currentBlock.draw();
 
-            return false; // ´õ ÀÌ»ó ³»·Á°¡Áö ¾ÊÀ½
+            return false; // ë” ì´ìƒ ë‚´ë ¤ê°€ì§€ ì•ŠìŒ
         }
 
-        // 2. Ãæµ¹ ¾øÀ½: ½ÇÁ¦ ÀÌµ¿ Ã³¸®
-        drawGhost(true);         // ÀÌÀü °í½ºÆ® Áö¿ì±â
-        currentBlock.draw(true); // ÀÌÀü ºí·Ï Áö¿ì±â
+        // 2. ì¶©ëŒ ì—†ìŒ: ì‹¤ì œ ì´ë™ ì²˜ë¦¬
+        drawGhost(true);         // ì´ì „ ê³ ìŠ¤íŠ¸ ì§€ìš°ê¸°
+        currentBlock.draw(true); // ì´ì „ ë¸”ë¡ ì§€ìš°ê¸°
 
-        currentBlock.y++;        // ÁÂÇ¥ ÀÌµ¿
+        currentBlock.y++;        // ì¢Œí‘œ ì´ë™
 
-        drawGhost(false);        // »õ °í½ºÆ® ±×¸®±â
-        currentBlock.draw();     // »õ ºí·Ï ±×¸®±â
+        drawGhost(false);        // ìƒˆ ê³ ìŠ¤íŠ¸ ê·¸ë¦¬ê¸°
+        currentBlock.draw();     // ìƒˆ ë¸”ë¡ ê·¸ë¦¬ê¸°
 
         return true;
     }
     
     /*
-     * [ÇÔ¼ö: moveSide]
-     * ¼³¸í: ºí·ÏÀ» ÁÂ(-1) ¶Ç´Â ¿ì(+1)·Î ÀÌµ¿½ÃÅµ´Ï´Ù.
-     * ÀÎÀÚ: dx (ÀÌµ¿ÇÒ ¹æÇâ°ú °Å¸®)
+     * [í•¨ìˆ˜: moveSide]
+     * ì„¤ëª…: ë¸”ë¡ì„ ì¢Œ(-1) ë˜ëŠ” ìš°(+1)ë¡œ ì´ë™ì‹œí‚µë‹ˆë‹¤.
+     * ì¸ì: dx (ì´ë™í•  ë°©í–¥ê³¼ ê±°ë¦¬)
      */
     void Game::moveSide(int dx) {
         if (!board.checkCollision(currentBlock, currentBlock.x + dx, currentBlock.y, currentBlock.angle)) {
 
-            // 1. Áö¿ì±â (°í½ºÆ® ¸ÕÀú, ±×´ÙÀ½ ºí·Ï)
-            drawGhost(true);         // °í½ºÆ® Áö¿ò
-            currentBlock.draw(true); // ºí·Ï Áö¿ò
+            // 1. ì§€ìš°ê¸° (ê³ ìŠ¤íŠ¸ ë¨¼ì €, ê·¸ë‹¤ìŒ ë¸”ë¡)
+            drawGhost(true);         // ê³ ìŠ¤íŠ¸ ì§€ì›€
+            currentBlock.draw(true); // ë¸”ë¡ ì§€ì›€
 
-            // 2. ÀÌµ¿
+            // 2. ì´ë™
             currentBlock.x += dx;
 
-            // 3. ±×¸®±â (°í½ºÆ® ¸ÕÀú, ±×´ÙÀ½ ºí·Ï)
-            // °í½ºÆ®¸¦ ¸ÕÀú ±×·Á¾ß ºí·ÏÀÌ °í½ºÆ® À§¿¡ °ãÃÄÁú ¶§ ºí·ÏÀÌ ¿ì¼±¼øÀ§¸¦ °¡Áü
-            drawGhost(false);        // »õ À§Ä¡¿¡ °í½ºÆ® ±×¸²
-            currentBlock.draw();     // »õ À§Ä¡¿¡ ºí·Ï ±×¸²
+            // 3. ê·¸ë¦¬ê¸° (ê³ ìŠ¤íŠ¸ ë¨¼ì €, ê·¸ë‹¤ìŒ ë¸”ë¡)
+            // ê³ ìŠ¤íŠ¸ë¥¼ ë¨¼ì € ê·¸ë ¤ì•¼ ë¸”ë¡ì´ ê³ ìŠ¤íŠ¸ ìœ„ì— ê²¹ì³ì§ˆ ë•Œ ë¸”ë¡ì´ ìš°ì„ ìˆœìœ„ë¥¼ ê°€ì§
+            drawGhost(false);        // ìƒˆ ìœ„ì¹˜ì— ê³ ìŠ¤íŠ¸ ê·¸ë¦¼
+            currentBlock.draw();     // ìƒˆ ìœ„ì¹˜ì— ë¸”ë¡ ê·¸ë¦¼
         }
     }
 
     /*
-     * [ÇÔ¼ö: rotateBlock]
-     * ¼³¸í: ºí·ÏÀ» ½Ã°è ¹æÇâÀ¸·Î È¸Àü½ÃÅµ´Ï´Ù. (Wall Kick ·ÎÁ÷ Æ÷ÇÔ)
+     * [í•¨ìˆ˜: rotateBlock]
+     * ì„¤ëª…: ë¸”ë¡ì„ ì‹œê³„ ë°©í–¥ìœ¼ë¡œ íšŒì „ì‹œí‚µë‹ˆë‹¤. (Wall Kick ë¡œì§ í¬í•¨)
      */
     void Game::rotateBlock() {
         int nextAngle = currentBlock.getNextAngle();
-        // Wall Kick: È¸Àü ½Ã º®¿¡ °É¸®¸é À§Ä¡¸¦ ¿Å°Ü¼­ È¸ÀüÀ» ¼º°ø½ÃÅ´
+        // Wall Kick: íšŒì „ ì‹œ ë²½ì— ê±¸ë¦¬ë©´ ìœ„ì¹˜ë¥¼ ì˜®ê²¨ì„œ íšŒì „ì„ ì„±ê³µì‹œí‚´
         int kickOffsets[] = { 0, -1, 1, -2, 2 };
 
         for (int offset : kickOffsets) {
             int testX = currentBlock.x + offset;
             if (!board.checkCollision(currentBlock, testX, currentBlock.y, nextAngle)) {
 
-                drawGhost(true);         // È¸ÀüÇÏ±â Àü¿¡ ÀÌÀü °í½ºÆ® Áö¿ì±â
-                currentBlock.draw(true); // ÀÌÀü ºí·Ï Áö¿ì±â
+                drawGhost(true);         // íšŒì „í•˜ê¸° ì „ì— ì´ì „ ê³ ìŠ¤íŠ¸ ì§€ìš°ê¸°
+                currentBlock.draw(true); // ì´ì „ ë¸”ë¡ ì§€ìš°ê¸°
 
-                // »óÅÂ º¯°æ (È¸Àü ¹× À§Ä¡ º¸Á¤)
+                // ìƒíƒœ ë³€ê²½ (íšŒì „ ë° ìœ„ì¹˜ ë³´ì •)
                 currentBlock.angle = nextAngle;
                 currentBlock.x = testX;
 
-                drawGhost(false);        // [Ãß°¡] È¸ÀüÇÑ »óÅÂÀÇ »õ °í½ºÆ® ±×¸®±â
-                currentBlock.draw();     // »õ ºí·Ï ±×¸®±â
+                drawGhost(false);        // [ì¶”ê°€] íšŒì „í•œ ìƒíƒœì˜ ìƒˆ ê³ ìŠ¤íŠ¸ ê·¸ë¦¬ê¸°
+                currentBlock.draw();     // ìƒˆ ë¸”ë¡ ê·¸ë¦¬ê¸°
 
                 return;
             }
@@ -436,28 +436,28 @@ namespace Tetris {
     }
 
     /*
-     * [ÇÔ¼ö: useBomb]
-     * ¼³¸í: ÇöÀç ºí·ÏÀ» ÆøÅº ¾ÆÀÌÅÛÀ¸·Î ±³Ã¼ÇÕ´Ï´Ù. (È½¼ö Á¦ÇÑ)
+     * [í•¨ìˆ˜: useBomb]
+     * ì„¤ëª…: í˜„ì¬ ë¸”ë¡ì„ í­íƒ„ ì•„ì´í…œìœ¼ë¡œ êµì²´í•©ë‹ˆë‹¤. (íšŸìˆ˜ ì œí•œ)
      */
     void Game::useBomb() {
-        // 1. ÆøÅºÀÌ ³²¾ÆÀÖ°í, ÇöÀç ÀÌ¹Ì ÆøÅºÀÌ ¾Æ´Ñ °æ¿ì¿¡¸¸ »ç¿ë °¡´É
+        // 1. í­íƒ„ì´ ë‚¨ì•„ìˆê³ , í˜„ì¬ ì´ë¯¸ í­íƒ„ì´ ì•„ë‹Œ ê²½ìš°ì—ë§Œ ì‚¬ìš© ê°€ëŠ¥
         if (bombCount > 0 && currentBlock.getType() != BOMB_TYPE) {
 
-            // 2. ÇöÀç ºí·Ï Áö¿ì±â (È­¸é °»½Å)
+            // 2. í˜„ì¬ ë¸”ë¡ ì§€ìš°ê¸° (í™”ë©´ ê°±ì‹ )
             drawGhost(true);
             currentBlock.draw(true);
 
-            // 3. ÇöÀç ºí·Ï Á¤º¸ ÀúÀå (Å¸ÀÔ¸¸ ÀúÀå)
+            // 3. í˜„ì¬ ë¸”ë¡ ì •ë³´ ì €ì¥ (íƒ€ì…ë§Œ ì €ì¥)
             savedBlockForBomb = currentBlock.getType();
 
-            // 4. ÇöÀç ºí·ÏÀ» ÆøÅºÀ¸·Î ±³Ã¼
+            // 4. í˜„ì¬ ë¸”ë¡ì„ í­íƒ„ìœ¼ë¡œ êµì²´
             currentBlock.spawn(BOMB_TYPE);
 
-            // 5. °¹¼ö Â÷°¨ ¹× UI °»½Å
+            // 5. ê°¯ìˆ˜ ì°¨ê° ë° UI ê°±ì‹ 
             bombCount--;
             showStats();
 
-            // 6. ÆøÅº ±×¸®±â
+            // 6. í­íƒ„ ê·¸ë¦¬ê¸°
             drawGhost(false);
             currentBlock.draw();
         }
