@@ -1,38 +1,76 @@
 #pragma once
+
+/*
+ * 파일명: Common.h
+ * 설명: 게임 전반에서 공통으로 사용되는 상수, 열거형(Enum), 구조체 등을 정의한 헤더입니다.
+ * (화면 크기, 색상 코드, 키 값, 스테이지 설정 등)
+ */
+
 namespace Tetris {
-    // 상수들
+
+    // ===========================================================
+    // [상수 정의] 게임 보드 및 화면 설정
+    // ===========================================================
+
+    // 게임 보드의 크기 (세로 21칸, 가로 14칸 - 벽 포함)
     constexpr int BOARD_HEIGHT = 21;
     constexpr int BOARD_WIDTH = 14;
-    constexpr int OFFSET_X = 47;
+
+    // 게임 보드가 그려질 화면상의 시작 위치 (중앙 정렬 기준)
+    constexpr int OFFSET_X = 48; // (120 - 14*2) / 2 = 46 (또는 48)
     constexpr int OFFSET_Y = 1;
 
-    // 열거형들
-    enum class Key {//enum Class => 꼭 클래스의 이름을 밝혀야 한다 예를 들어 Key::UP 이렇게 => 이름 충돌을 막아준다.
-        UP = 0x48, DOWN = 0x50, LEFT = 0x4b, RIGHT = 0x4d, SPACE = 32, NONE = 0
+
+    // ===========================================================
+    // [열거형] 키보드 입력 매핑 (Key Code)
+    // ===========================================================
+
+    // 방향키 및 기능키 정의
+    // enum class를 사용하여 이름 충돌 방지 (예: Key::UP)
+    enum class Key {
+        UP = 0x48, // 방향키 위 (회전)
+        DOWN = 0x50, // 방향키 아래 (천천히 하강)
+        LEFT = 0x4b, // 방향키 왼쪽 (좌측 이동)
+        RIGHT = 0x4d, // 방향키 오른쪽 (우측 이동)
+        SPACE = 32,   // 스페이스바 (하드 드롭)
+        NONE = 0     // 입력 없음
     };
 
+
+    // ===========================================================
+    // [열거형] 콘솔 색상 코드 (Color Code)
+    // ===========================================================
+
+    // 윈도우 콘솔 API 색상 값 매핑
     enum class Color {
         BLACK = 0,
-        DARK_BLUE = 1, 
-        DARK_GREEN = 2, 
-        DARK_SKY_BLUE = 3, 
-        DARK_RED = 4, 
-        DARK_VIOLET = 5, 
+        DARK_BLUE = 1,
+        DARK_GREEN = 2,
+        DARK_SKY_BLUE = 3,
+        DARK_RED = 4,
+        DARK_VIOLET = 5,
         DARK_YELLOW = 6,
-        GRAY = 7, 
+        GRAY = 7,
         DARK_GRAY = 8,
-        BLUE = 9, 
-        GREEN = 10, 
-        SKY_BLUE = 11, 
-        RED = 12, 
-        VIOLET = 13, 
-        YELLOW = 14, 
+        BLUE = 9,
+        GREEN = 10,
+        SKY_BLUE = 11,
+        RED = 12,
+        VIOLET = 13,
+        YELLOW = 14,
         WHITE = 15
     };
 
+
+    // ===========================================================
+    // [구조체] 게임 설정 데이터
+    // ===========================================================
+
+    // 각 스테이지(레벨)별 난이도 정보
     struct StageConfig {
-        int speed;
-        int stickRate;
-        int clearLineGoal;
+        int speed;          // 블록 자동 낙하 속도 (낮을수록 빠름)
+        int stickRate;      // 긴 막대기(I 블록) 등장 확률 (%)
+        int clearLineGoal;  // 다음 레벨로 가기 위해 필요한 누적 줄 수
     };
+
 }

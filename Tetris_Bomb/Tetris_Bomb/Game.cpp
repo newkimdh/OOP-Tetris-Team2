@@ -2,196 +2,202 @@
 #include "ConsoleHelper.h"
 #include "ShapeRepository.h"
 #include <iostream>
-#include <conio.h>
-#include <ctime>
-#include <windows.h> // Sleep
-#include <fstream>   // [Ãß°¡] ÆÄÀÏ ÀúÀå
-#include <cstring>   // [Ãß°¡] strcspn, strlen µî »ç¿ë
-#include <string>
-#include <iomanip>   // setw, left, right
-#include <algorithm>
+#include <conio.h>   // _getch, _kbhit (ì…ë ¥ ëŒ€ê¸°ìš©)
+#include <ctime>     // time           
+#include <windows.h> // Sleep          (ëŒ€ê¸° ì• ë‹ˆë©”ì´ì…˜ìš©)
+#include <string>    // string         (ë¬¸ìì—´ ì²˜ë¦¬ìš©)
+
+/*
+ * íŒŒì¼ëª…: Game.cpp
+ * ì„¤ëª…: Tetris ê²Œì„ì˜ í•µì‹¬ ë¡œì§ì„ ë‹´ë‹¹í•˜ëŠ” íŒŒì¼ì…ë‹ˆë‹¤.
+ * ê²Œì„ íë¦„ ì œì–´, í‚¤ ì…ë ¥ ì²˜ë¦¬, ë¸”ë¡ ì´ë™ ë° ì¶©ëŒ ê³„ì‚° ë“±ì´ í¬í•¨ë©ë‹ˆë‹¤.
+ * (í™”ë©´ ì¶œë ¥ ê´€ë ¨ ì½”ë“œëŠ” Game_UI.cppì— ìˆìŠµë‹ˆë‹¤.)
+ 
+  ===========================================================================
+    [Game.cpp í•¨ìˆ˜ ëª©ì°¨ (Function Index)]
+
+    1. Game::Game (ìƒì„±ì) .................... Line 34
+    2. Game::run (ë©”ì¸ ë£¨í”„) .................. Line 47
+    3. Game::initStages (ë‚œì´ë„ ì„¤ì •) ......... Line 124
+    4. Game::resetGame (ì´ˆê¸°í™”) ............... Line 144
+    5. Game::makeNewBlockType (ë¸”ë¡ ìƒì„±) ..... Line 158
+    6. Game::spawnNextBlock (ë‹¤ìŒ ë¸”ë¡) ....... Line 174
+    7. Game::handleInput (í‚¤ ì…ë ¥) ............ Line 196
+    8. Game::moveDown (í•˜ê°• ë¡œì§) ............. Line 294
+    9. Game::moveSide (ì¢Œìš° ì´ë™) ............. Line 388
+   10. Game::rotateBlock (íšŒì „) ............... Line 410
+   11. Game::useBomb (í­íƒ„ ìŠ¤í‚¬) .............. Line 438
+  ===========================================================================
+  */
 
 namespace Tetris {
+    /*
+     * [Game ìƒì„±ì]
+     * ì„¤ëª…: ê²Œì„ì— í•„ìš”í•œ ë³€ìˆ˜ë“¤ì„ ì´ˆê¸°í™”í•˜ê³  ë‚œì´ë„ ë°ì´í„°ë¥¼ ì„¤ì •í•©ë‹ˆë‹¤.
+     * ëœë¤ ì‹œë“œê°’ ìƒì„±ë„ ì—¬ê¸°ì„œ ìˆ˜í–‰í•©ë‹ˆë‹¤.
+     */
     Game::Game() 
         : level(0), score(0), totalLines(0), gameOver(false), 
-        bombCount(3), savedBlockForBomb(-1), shouldExitToTitle(false)  // [Ãß°¡] ÃÊ±âÈ­
+        bombCount(3), savedBlockForBomb(-1), shouldExitToTitle(false)  // [ì¶”ê°€] ì´ˆê¸°í™”
     {
         srand(static_cast<unsigned>(time(NULL)));
         initStages();
     }
 
+    /*
+     * [í•¨ìˆ˜: run]
+     * ì„¤ëª…: ê²Œì„ì˜ ì „ì²´ ìƒëª…ì£¼ê¸°ë¥¼ ê´€ë¦¬í•˜ëŠ” ë©”ì¸ ë£¨í”„ì…ë‹ˆë‹¤.
+     * ì¸íŠ¸ë¡œ -> (ì´ˆê¸°í™” -> ë ˆë²¨ì„ íƒ -> ì¸ê²Œì„ ë£¨í”„) ê³¼ì •ì„ ë°˜ë³µí•©ë‹ˆë‹¤.
+     * ë ˆë²¨ ì„ íƒì—ì„œ ì¢…ë£Œ(-1) ì‹ í˜¸ë¥¼ ë°›ìœ¼ë©´ ë£¨í”„ë¥¼ íƒˆì¶œí•©ë‹ˆë‹¤.
+     */
     void Game::run() {
+        // 1. ê²Œì„ ì´ˆê¸° ì„¤ì •
         ConsoleHelper::cursorVisible(false);
         showLogo();
 
         while (true) {
+            // 2. ë§¤ ê²Œì„ë§ˆë‹¤ ì´ˆê¸°í™” ë° ë ˆë²¨ ì„ íƒ
             resetGame();
             selectLevel();
 
-            // [Ãß°¡] ·¹º§ ¼±ÅÃ¿¡¼­ 'Q'¸¦ ´­·¯ -1ÀÌ ¼³Á¤µÇ¾ú´Ù¸é °ÔÀÓ Á¾·á
+            // [ì¢…ë£Œ ì²´í¬] ë ˆë²¨ ì„ íƒì—ì„œ 'Q'(-1)ë¥¼ ëˆ„ë¥´ë©´ ì¢…ë£Œ
             if (level == -1) {
-                ConsoleHelper::clear();
-
-                // 1. Good Bye ¾ÆÆ® Á¤ÀÇ (ÀÌ½ºÄÉÀÌÇÁ ¹®ÀÚ Ã³¸® ¿Ï·á)
-                std::string goodByeArt[6] = {
-                    "  ________                   .___ __________             ._.",
-                    " /  _____/  ____   ____   __| _/ \\______   \\___.__. ____| |",
-                    "/   \\  ___ /  _ \\ /  _ \\ / __ |   |    |  _<   |  |/ __ \\ |",
-                    "\\    \\_\\  (  <_> |  <_> ) /_/ |   |    |   \\\\___  \\  ___/\\|",
-                    " \\______  /\\____/ \\____/\\____ |   |______  // ____|\\___  >_",
-                    "        \\/                   \\/          \\/ \\/         \\/\\/"
-                };
-
-                // 2. Áß¾Ó Á¤·Ä ÁÂÇ¥ °è»ê
-                // ¾ÆÆ® ³Êºñ: ¾à 67Ä­
-                // È­¸é ³Êºñ: 120Ä­
-                // ½ÃÀÛ X: (120 - 67) / 2 = 26
-                int startX = 26;
-                int startY = 10; // È­¸é Áß¾Ó ³ôÀÌ
-
-                // 3. Ãâ·Â (³ë¶õ»öÀ¸·Î ¿¹»Ú°Ô)
-                ConsoleHelper::setColor(Color::WHITE);
-                for (int i = 0; i < 6; ++i) {
-                    ConsoleHelper::gotoXY(startX, startY + i);
-                    std::cout << goodByeArt[i];
-                }
-
-                // 4. Àá½Ã º¸¿©ÁÖ°í Á¾·á
-                Sleep(2000); // 2ÃÊ ´ë±â
-
-                // »ö»ó ÃÊ±âÈ­ ¹× Ä¿¼­ ¾Æ·¡·Î ÀÌµ¿ (ÄÜ¼ÖÃ¢ ´İÈú ¶§ ±ò²ûÇÏ°Ô)
-                ConsoleHelper::setColor(Color::WHITE);
-                ConsoleHelper::gotoXY(0, 38);
-                break; // ÇÁ·Î±×·¥ Á¾·á
+                showGoodBye(); // ì¢…ë£Œ í™”ë©´ ì¶œë ¥
+                break;         // í”„ë¡œê·¸ë¨ ì¢…ë£Œ
             }
-            ConsoleHelper::clear();
 
+            // 3. ê²Œì„ í”Œë ˆì´ ì¤€ë¹„
+            ConsoleHelper::clear();
             board.setLevel(level);
             board.reset();
             heldBlockType = -1;
             canHold = true;
-            board.draw();
+            board.draw(); // ë³´ë“œ ê·¸ë¦¬ê¸°
 
+            // ì²« ë¸”ë¡ ìƒì„± ë° UI ì´ˆê¸°í™”
             nextBlockType = makeNewBlockType();
             spawnNextBlock();
             showStats();
             showNextBlockPreview();
 
+            // -------------------------------------------------------
+            // [ì¸ê²Œì„ ë£¨í”„] í”„ë ˆì„ ë‹¨ìœ„ë¡œ ê²Œì„ ë¡œì§ì„ ì‹¤í–‰í•©ë‹ˆë‹¤.
+            // -------------------------------------------------------
             int frameCount = 0;
             while (!gameOver) {
+                // (1) í‚¤ ì…ë ¥ ì²˜ë¦¬
                 handleInput();
 
-                // [¼öÁ¤ 1] "³ª°¡±â"°¡ ´­·ÈÀ¸¸é ·çÇÁ Áï½Ã Å»Ãâ (´õ ÀÌ»ó ÁøÇà X)
+                // (2) ê°•ì œ ì¢…ë£Œ ì²´í¬ (ì¼ì‹œì •ì§€ ë©”ë‰´ì—ì„œ Quit ì„ íƒ ì‹œ)
                 if (shouldExitToTitle) {
                     break;
                 }
 
-                //ÀÏ½ÃÁ¤Áö ·ÎÁ÷
+                // (3) ì¼ì‹œì •ì§€ ì²´í¬ (handleInput ë‚´ë¶€ì—ì„œ ì²˜ë¦¬ë˜ì§€ë§Œ ì•ˆì „ì¥ì¹˜ ìœ ì§€)
                 if (isPaused) {
                     Sleep(15);
                     continue;
                 }
 
+                // (4) ë¸”ë¡ ìë™ í•˜ê°• (ì†ë„ ì¡°ì ˆ)
                 if (frameCount % stages[level].speed == 0) {
-                    if (!moveDown()) {}
+                    moveDown();
                 }
 
+                // (5) ê²Œì„ ì˜¤ë²„ ì²´í¬
                 if (gameOver) {
-                    // [¼öÁ¤ 2] "Å¸ÀÌÆ²·Î ³ª°¡±â"°¡ ¾Æ´Ò ¶§¸¸(ÁøÂ¥ Á×¾úÀ» ¶§¸¸) °á°úÃ¢ ¶ç¿ì±â
+                    // ê°•ì œ ì¢…ë£Œê°€ ì•„ë‹ ë•Œë§Œ ê²°ê³¼ì°½ ë° ë­í‚¹ ì €ì¥
                     if (!shouldExitToTitle) {
-                        showGameOver();           // ±âÁ¸ °ÔÀÓ ¿À¹ö ÆË¾÷
-                        promptNameAndSaveScore(); // [Ãß°¡] ´Ğ³×ÀÓ ÀÔ·Â ÆË¾÷
+                        showGameOver();
+                        promptNameAndSaveScore();
                     }
                     break;
                 }
 
+                // (6) í”„ë ˆì„ ëŒ€ê¸° ë° ì¹´ìš´íŠ¸
                 Sleep(15);
                 frameCount++;
             }
         }
     }
 
+    /*
+     * [í•¨ìˆ˜: initStages]
+     * ì„¤ëª…: ê° ë ˆë²¨ë³„ ë‚œì´ë„ ë°ì´í„°(ì†ë„, í™•ë¥  ë“±)ë¥¼ ì´ˆê¸°í™”í•©ë‹ˆë‹¤.
+     */
     void Game::initStages() {
+        // { ë‚™í•˜ ì†ë„(ë‚®ì„ìˆ˜ë¡ ë¹ ë¦„) , ê¸´ ë§‰ëŒ€ê¸° íšë“ í™•ë¥  , ë ˆë²¨ì—… ì¡°ê±´ ì¤„ ìˆ˜ }
         stages = {
-            {40, 20, 10}, {38, 18, 12}, {35, 18, 15}, {30, 17, 20},
-            {25, 16, 20}, {20, 14, 25}, {15, 14, 25}, {10, 13, 30},
-            {6, 12, 35},  {4, 11, 99999}
+            {40, 20, 10}, 
+            {38, 18, 12}, 
+            {35, 18, 15}, 
+            {30, 17, 20},
+            {25, 16, 20}, 
+            {20, 14, 25}, 
+            {15, 14, 25}, 
+            {10, 13, 30},
+            {6, 12, 35},  
+            {4, 11, 99999}
         };
-    }//speed/±ä ¸·´ë±â È¹µæ È®·ü/·¹º§¾÷ Á¶°Ç
-    //·¹º§¸¶´Ù Å¬¸®¾î Á¶°Ç ¹Ù²Ş
+    }
 
+    /*
+     * [í•¨ìˆ˜: resetGame]
+     * ì„¤ëª…: ìƒˆ ê²Œì„ì„ ì‹œì‘í•˜ê¸° ìœ„í•´ ì ìˆ˜, ìƒíƒœ ë³€ìˆ˜ë“¤ì„ ë¦¬ì…‹í•©ë‹ˆë‹¤.
+     */
     void Game::resetGame() {
         score = 0;
         totalLines = 0;
         gameOver = false;
-
-        // [Ãß°¡] °ÔÀÓ ¸®¼Â ½Ã ÆøÅº 3°³ ÃæÀü
-        bombCount = 3;
+        bombCount = 3;              // ê²Œì„ ë¦¬ì…‹ ì‹œ í­íƒ„ 3ê°œ ì¶©ì „
         savedBlockForBomb = -1;
-
-        // [Ãß°¡] Áß¿ä! »õ °ÔÀÓ ½ÃÀÛÇÒ ¶§´Â '³ª°¡±â »óÅÂ'¸¦ ÇØÁ¦ÇØ¾ß ÇÔ
-        shouldExitToTitle = false;
-
-        // (¼±ÅÃ) È¤½Ã ¸ğ¸£´Ï ÀÏ½ÃÁ¤Áö »óÅÂµµ È®½ÇÈ÷ ²¨µÒ
-        isPaused = false;
+        shouldExitToTitle = false;  // ìƒˆ ê²Œì„ ì‹œì‘í•  ë•Œ 'ë‚˜ê°€ê¸° ìƒíƒœ'ë¥¼ í•´ì œ
+        isPaused = false;           // í˜¹ì‹œ ëª¨ë¥´ë‹ˆ ì¼ì‹œì •ì§€ ìƒíƒœë„ í™•ì‹¤íˆ êº¼ë‘ 
 
     }
 
+    /*
+     * [í•¨ìˆ˜: makeNewBlockType]
+     * ì„¤ëª…: í™•ë¥ ì— ë”°ë¼ ìƒˆë¡œìš´ ë¸”ë¡ì˜ íƒ€ì…(ë²ˆí˜¸)ì„ ìƒì„±í•©ë‹ˆë‹¤.
+     * ë¦¬í„´: ìƒì„±ëœ ë¸”ë¡ íƒ€ì… ID (0~6, í˜¹ì€ 7:í­íƒ„)
+     */
     int Game::makeNewBlockType() {
         int rnd = rand() % 100;
 
-        // [Ãß°¡] 5% È®·ü·Î ÆøÅº(Type 7) »ı¼º
-        // if (rnd < 5) return 7;
-        // [»èÁ¦] 3¹ø ¾×Æ¼ºê·Î º¯°æ
+        // ìŠ¤í…Œì´ì§€ ì„¤ì •ì— ë”°ë¼ ê¸´ ë§‰ëŒ€ê¸°(Type 0) í™•ë¥  ì¡°ì •
+        if (rnd <= stages[level].stickRate) 
+            return 0;
 
-        if (rnd <= stages[level].stickRate) return 0;
         return (rand() % 6) + 1;
     }
 
-  /*  void Game::spawnNextBlock() {
-        currentBlock.spawn(nextBlockType);
-        nextBlockType = makeNewBlockType();
-        showNextBlockPreview();
-    }*/
+    /*
+     * [í•¨ìˆ˜: spawnNextBlock]
+     * ì„¤ëª…: ëŒ€ê¸° ì¤‘ì´ë˜ Next ë¸”ë¡ì„ í˜„ì¬ ë¸”ë¡ìœ¼ë¡œ ê°€ì ¸ì˜¤ê³ ,
+     * ìƒˆë¡œìš´ Next ë¸”ë¡ì„ ìƒì„±í•©ë‹ˆë‹¤. ê´€ë ¨ UIë„ ê°±ì‹ í•©ë‹ˆë‹¤.
+     */
     void Game::spawnNextBlock() {
         currentBlock.spawn(nextBlockType);
         nextBlockType = makeNewBlockType();
-        showNextBlockPreview();
 
-        canHold = true;
+        showNextBlockPreview();
+        canHold = true;      // í™€ë“œ ê¸°ëŠ¥ ì‚¬ìš© ê°€ëŠ¥ ìƒíƒœë¡œ ë¦¬ì…‹
         showHoldBlock();
-        // [Ãß°¡] Ã³À½ ³ª¿Ã ¶§µµ ±×·ÁÁÖ±â
+        
         drawGhost(false);
         currentBlock.draw();
     }
-   
-
+    
+    /*
+     * [í•¨ìˆ˜: handleInput]
+     * ì„¤ëª…: ì‚¬ìš©ì í‚¤ë³´ë“œ ì…ë ¥ì„ ê°ì§€í•˜ê³  í•´ë‹¹ ë™ì‘ì„ ìˆ˜í–‰í•©ë‹ˆë‹¤.
+     * (ì´ë™, íšŒì „, ìŠ¤í‚¬, ì¼ì‹œì •ì§€ ë“±)
+     */
     void Game::handleInput() {
         if (_kbhit()) {
             int key = _getch();
 
-            //// [Ãß°¡] 'p' ¶Ç´Â 'P'¸¦ ´©¸£¸é ÀÏ½ÃÁ¤Áö Åä±Û
-            //    //ÀÏ½ÃÁ¤Áö ·ÎÁ÷
-            //if (key == 'p' || key == 'P') {
-            //    isPaused = !isPaused;
-
-            //    // ÀÏ½ÃÁ¤Áö »óÅÂ¸é È­¸é¿¡ Ç¥½Ã
-            //    if (isPaused) {
-            //        ConsoleHelper::gotoXY(OFFSET_X + 4, 10);
-            //        ConsoleHelper::setColor(Color::RED);
-            //        printf(" PAUSED ");
-            //    }
-            //    else {
-            //        // ´Ù½Ã °ÔÀÓ È­¸é(º¸µå)À» µ¤¾î¾º¿ö "PAUSED" ±ÛÀÚ Áö¿ì±â
-            //        board.draw();
-            //        currentBlock.draw();
-            //    }
-            //    return; // ÀÔ·ÂÀ» Ã³¸®ÇßÀ¸´Ï Á¾·á
-            //}
-
-            //if (isPaused) return; // [Ãß°¡] ÀÏ½ÃÁ¤Áö ÁßÀÌ¸é ´Ù¸¥ Å° ÀÔ·Â ¹«½Ã
-
-
+            // íŠ¹ìˆ˜í‚¤ (ë°©í–¥í‚¤) ì²˜ë¦¬
             if (key == 0xE0 || key == 0) {
                 key = _getch();
                 if (isPaused) return;
@@ -203,169 +209,114 @@ namespace Tetris {
                 case static_cast<int>(Key::DOWN): moveDown(); break;
                 }
             }
+            // ì¼ë°˜ í‚¤ ì²˜ë¦¬
             else {
-                // P Å° È®ÀÎ (´ë¼Ò¹®ÀÚ ¸ğµÎ)
+                // C í‚¤: í™€ë“œ
                 if (key == 'c' || key == 'C') {
-                    // 1. ÀÌ¹ø ÅÏ¿¡ ÀÌ¹Ì ½è´Ù¸é ¹«½Ã
+                    // 1. ì´ë²ˆ í„´ì— ì´ë¯¸ ì¼ë‹¤ë©´ ë¬´ì‹œ
                     if (!canHold) return;
 
                     if (heldBlockType != -1 && heldBlockType == currentBlock.getType()) {
                         return;
                     }
 
-                    // 2. ÇöÀç È­¸é¿¡ ÀÖ´Â ºí·Ï Áö¿ì±â (Áß¿ä: ¾È Áö¿ì¸é ÀÜ»ó ³²À½)
+                    // 2. í˜„ì¬ í™”ë©´ì— ìˆëŠ” ë¸”ë¡ ì§€ìš°ê¸° (ì¤‘ìš”: ì•ˆ ì§€ìš°ë©´ ì”ìƒ ë‚¨ìŒ)
                     currentBlock.draw(true);
                     drawGhost(true);
 
+                    // í™€ë“œ ë¡œì§: ì €ì¥ëœ ë¸”ë¡ì´ ì—†ìœ¼ë©´ ë„£ê³ , ìˆìœ¼ë©´ êµì²´
                     if (heldBlockType == -1) {
-                        // Case A: Åµ µÈ°Ô ¾øÀ» ¶§
-                        heldBlockType = currentBlock.getType(); // ÇöÀç ºí·Ï ÀúÀå
-                        spawnNextBlock(); // ´ÙÀ½ ºí·ÏÀ» ÇöÀç ºí·ÏÀ¸·Î °¡Á®¿È
-
-                        // spawnNextBlock¿¡¼­ canHold=true°¡ µÇ¹ö¸®¹Ç·Î ´Ù½Ã Àá±İ
-                        canHold = false;
+                        // Case A: í‚µëœ ë¸”ë¡ì´ ì—†ì„ ë•Œ
+                        heldBlockType = currentBlock.getType(); // í˜„ì¬ ë¸”ë¡ ì €ì¥
+                        spawnNextBlock();                       // ë‹¤ìŒ ë¸”ë¡ì„ í˜„ì¬ ë¸”ë¡ìœ¼ë¡œ ê°€ì ¸ì˜´
                     }
                     else {
-                        // Case B: Åµ µÈ°Ô ÀÖÀ» ¶§ (¼­·Î ±³Ã¼)
+                        // Case B: í‚µ ëœê²Œ ìˆì„ ë•Œ (ì„œë¡œ êµì²´)
                         int tempType = currentBlock.getType();
 
-                        // ÀúÀåµÈ Å¸ÀÔÀ¸·Î ÇöÀç ºí·Ï Àç»ı¼º (À§Ä¡, °¢µµ ÃÊ±âÈ­)
-                        currentBlock.spawn(heldBlockType);
-                        heldBlockType = tempType; // ÇöÀç Å¸ÀÔÀ» ÀúÀå¼Ò·Î
-
-                        // ±³Ã¼ ÈÄ Àá±İ
-                        canHold = false;
+                        currentBlock.spawn(heldBlockType);      // ì €ì¥ëœ íƒ€ì…ìœ¼ë¡œ í˜„ì¬ ë¸”ë¡ ì¬ìƒì„± (ìœ„ì¹˜, ê°ë„ ì´ˆê¸°í™”)
+                        heldBlockType = tempType;               // í˜„ì¬ íƒ€ì…ì„ ì €ì¥ì†Œë¡œ
                     }
+                    canHold = false; // ì´ë²ˆ í„´ì—ëŠ” ë‹¤ì‹œ ì‚¬ìš© ë¶ˆê°€
 
-                    // 3. º¯°æµÈ »óÅÂ È­¸é¿¡ ±×¸®±â
-                    showHoldBlock();    // ¿ŞÂÊ È¦µåÃ¢ °»½Å
-                    showNextBlockPreview(); // (Case AÀÏ °æ¿ì ÇÊ¿ä)
-                    currentBlock.draw(); // ÇöÀç ºí·Ï ´Ù½Ã ±×¸®±â
+                    // 3. ë³€ê²½ëœ ìƒíƒœ ë°˜ì˜í•˜ì—¬ UI ê°±ì‹ 
+                    showHoldBlock();        // ì™¼ìª½ í™€ë“œì°½ ê°±ì‹ 
+                    showNextBlockPreview(); // (Case Aì¼ ê²½ìš° í•„ìš”)
+                    currentBlock.draw();    // í˜„ì¬ ë¸”ë¡ ë‹¤ì‹œ ê·¸ë¦¬ê¸°
 
-                    return; // ÀÔ·Â Ã³¸® ¿Ï·á
+                    return; // ì…ë ¥ ì²˜ë¦¬ ì™„ë£Œ
                 }
-                if (key == 'p' || key == 'P') {
-                    isPaused = true; // ¾ø¾Öµµ µÇ´Âµ¥ ÀÌ¹Ì ³Ê¹« ¸¹ÀÌ ¾²¿©¼­ ÀÜ·ù
 
-                    // [¼öÁ¤] ÆË¾÷ ÇÔ¼ö È£Ãâ, °á°ú ¹İÈ¯
+                // P í‚¤: ì¼ì‹œ ì •ì§€ (ë©”ë‰´ í˜¸ì¶œ)
+                if (key == 'p' || key == 'P') {
+                    isPaused = true;
+
+                    // íŒì—… í•¨ìˆ˜ í˜¸ì¶œ, ê²°ê³¼ ë°˜í™˜
                     int choice = drawPausePopup();
                     
-                    // [¼±ÅÃ 1] ³ª°¡±â Quit ¼±ÅÃ ½Ã
+                    // [ì„ íƒ 1] ë‚˜ê°€ê¸° Quit ì„ íƒ ì‹œ
                     if (choice == 1) {
-                        isPaused = false;          // »óÅÂ ÃÊ±âÈ­ 
-                        shouldExitToTitle = true;   // Å¸ÀÌÆ²·Î °£´Ù°í Ç¥½Ã
-                        gameOver = true;           // °ÔÀÓ ·çÇÁ Á¾·á½ÃÅ°±â
+                        isPaused = false;          // ìƒíƒœ ì´ˆê¸°í™” 
+                        shouldExitToTitle = true;  // íƒ€ì´í‹€ë¡œ ê°„ë‹¤ê³  í‘œì‹œ
+                        gameOver = true;           // ê²Œì„ ë£¨í”„ ì¢…ë£Œì‹œí‚¤ê¸°
                         return;     
                     }
 
-                    // [¼±ÅÃ 0] °è¼ÓÇÏ±â(Resume) ¼±ÅÃ ½Ã -> ±âÁ¸ º¹±¸ ·ÎÁ÷ ½ÇÇà
+                    // [ì„ íƒ 0] ê³„ì†í•˜ê¸°(Resume) ì„ íƒ ì‹œ -> ê¸°ì¡´ ë³µêµ¬ ë¡œì§ ì‹¤í–‰
                     isPaused = false;
-                    ConsoleHelper::clear();
-                    board.draw();
-                    showStats();
-                    showNextBlockPreview();
-                    showHoldBlock();
+                    ConsoleHelper::clear(); // pause ì°½ ì§€ìš°ê¸°
+                    board.draw();           // a. ëª¨ë“œ
+                    showStats();            // b. ì ìˆ˜, ë ˆë²¨, í­íƒ„
+                    showNextBlockPreview(); // c. ë‹¤ìŒ ë¸”ë¡ UI
+                    showHoldBlock();        // d. í™€ë“œ UI
                     drawGhost(false);
                     currentBlock.draw();
                     isPaused = false;
-                    return;
 
-                    // 3. º¹±¸
-                    ConsoleHelper::clear(); // pause Ã¢ Áö¿ì±â
-
-                    board.draw();           // a. ¸ğµå
-                    showStats();            // b. Á¡¼ö, ·¹º§, ÆøÅº
-                    showNextBlockPreview(); // c. ´ÙÀ½ ºí·Ï UI
-                    showHoldBlock();        // d. È¦µå UI
-
-                    drawGhost(false);
-                    currentBlock.draw();
-                    
                     return;
                 }
-                // [Ãß°¡] 'b', 'B' ÀÔ·Â ½Ã ÆøÅº »ç¿ë
+
+                // B í‚¤: í­íƒ„ ìŠ¤í‚¬
                 if (key == 'b' || key == 'B') {
                     if (!isPaused) useBomb();
                     return;
                 }
 
-                if (isPaused) return; // ÀÏ½ÃÁ¤Áö ÁßÀÌ¸é ´Ù¸¥ ÀÏ¹İ Å°(½ºÆäÀÌ½º¹Ù µî) ¹«½Ã
-
-                // ½ºÆäÀÌ½º¹Ù Ã³¸®
+                // Space í‚¤: í•˜ë“œ ë“œë¡­ (ë°”ë‹¥ê¹Œì§€ ì¦‰ì‹œ ì´ë™)
+                if (isPaused) return;       // ì¼ì‹œì •ì§€ ì¤‘ì´ë©´ ë‹¤ë¥¸ ì¼ë°˜ í‚¤(ìŠ¤í˜ì´ìŠ¤ë°” ë“±) ë¬´ì‹œ
                 if (key == static_cast<int>(Key::SPACE)) {
-                    while (moveDown());
+                    while (moveDown());     // ë°”ë‹¥ì— ë‹¿ì„ ë•Œê¹Œì§€ ê³„ì† ë‚´ë¦¼
                 }
             }
         }
     }
 
-    //bool Game::moveDown() {
-    //    if (board.checkCollision(currentBlock, currentBlock.x, currentBlock.y + 1, currentBlock.angle)) {
-    //        if (currentBlock.y < 0) {
-    //            gameOver = true;
-    //            return false;
-    //        }
-
-    //        board.merge(currentBlock);
-
-    //        int lines = board.processFullLines();
-    //        if (lines > 0) {
-    //            totalLines += lines;
-    //           /* for (int k = 0; k < lines; k++) score += 100 + (level * 10) + (rand() % 10);*/
-
-    //            int baseScore = 0;
-    //            switch (lines) {
-    //            case 1: baseScore = 10; break;
-    //            case 2: baseScore = 30; break;  // 100*2 + º¸³Ê½º
-    //            case 3: baseScore = 50; break;  // 100*3 + º¸³Ê½º
-    //            case 4: baseScore = 80; break;  // 'Å×Æ®¸®½º' (Å« º¸³Ê½º)
-    //            default: baseScore = 0; break;
-    //            }
-    //            // ·¹º§ °¡ÁßÄ¡ Ãß°¡
-    //            score += baseScore + (lines * level * 20);//line*20¿¡¼­ Á¡¼ö¸¦ ´õ ÁÖ´Â°Å
-    //            //ÇÑÁÙÀÌ¸é 10, µÎÁÙÀÌ¸é 30, ¼¼ÁÙ : 50, ³×ÁÙ : 80
-
-    //            if (totalLines >= stages[level].clearLineGoal) {
-    //                totalLines = 0;
-    //                if (level < 9) level++;
-    //                board.setLevel(level);
-    //                board.draw();
-    //            }
-    //            showStats();
-    //        }
-
-    //        spawnNextBlock();
-    //        currentBlock.draw();
-    //        return false;
-    //    }
-
-    //    currentBlock.draw(true);
-    //    currentBlock.y++;
-    //    currentBlock.draw();
-    //    return true;
-    //}
+    /*
+     * [í•¨ìˆ˜: moveDown]
+     * ì„¤ëª…: ë¸”ë¡ì„ í•œ ì¹¸ ì•„ë˜ë¡œ ì´ë™ì‹œí‚µë‹ˆë‹¤.
+     * ë°”ë‹¥ì´ë‚˜ ë‹¤ë¥¸ ë¸”ë¡ì— ë‹¿ì•˜ì„ ê²½ìš° ê³ ì •(Merge) ë° ì¤„ ì‚­ì œ ì²˜ë¦¬ë¥¼ í•©ë‹ˆë‹¤.
+     * ë¦¬í„´: true = ì´ë™ ì„±ê³µ, false = ë°”ë‹¥ì— ë‹¿ì•„ì„œ ë©ˆì¶¤(ê³ ì •ë¨)
+     */
     bool Game::moveDown() {
-        // 1. ¹Ù´Ú¿¡ ´ê¾Ò´ÂÁö(Ãæµ¹) È®ÀÎ
+        // 1. ì¶©ëŒ ì²´í¬ (ë¯¸ë¦¬ í•œ ì¹¸ ì•„ë˜ë¥¼ í™•ì¸)
         if (board.checkCollision(currentBlock, currentBlock.x, currentBlock.y + 1, currentBlock.angle)) {
+            drawGhost(true);        // ë¸”ë¡ì´ êµ³ê¸° ì§ì „ì—, ê·¸ë ¤ì ¸ ìˆë˜ ê³ ìŠ¤íŠ¸ë¥¼ ì§€ì›Œì¤ë‹ˆë‹¤.
+            currentBlock.draw();    // ìµœì¢… ìœ„ì¹˜ ê·¸ë¦¬ê¸°
 
-            // [Ãß°¡] ºí·ÏÀÌ ±»±â Á÷Àü¿¡, ±×·ÁÁ® ÀÖ´ø °í½ºÆ®¸¦ Áö¿öÁİ´Ï´Ù.
-            // ¾È Áö¿ì¸é ¹Ù´Ú¿¡ È¸»ö ³×¸ğ°¡ ³²À» ¼ö ÀÖ½À´Ï´Ù.
-            drawGhost(true);
-            currentBlock.draw();
-
+            // ì²œì¥ì— ë‹¿ì•˜ìœ¼ë©´ ê²Œì„ ì˜¤ë²„
             if (currentBlock.y < 0) {
                 gameOver = true;
                 return false;
             }
 
-            // [¼öÁ¤] ÆøÅº ºí·Ï(Type 7)ÀÎ °æ¿ì Æø¹ß, ¾Æ´Ï¸é ÀÏ¹İ º´ÇÕ
+            // [í­íƒ„ ë¸”ë¡ ì²˜ë¦¬] í­íƒ„ì¸ ê²½ìš°
             if (currentBlock.getType() == BOMB_TYPE) {
-                // 1. ÆøÅº Æø¹ß
-                // ÆøÅºÀÇ Áß½É ÁÂÇ¥ °è»ê (BlockÀÇ x, y´Â 4x4 ¹Ú½ºÀÇ ÁÂ»ó´Ü)
-                // ÆøÅº ¸ğ¾çÀÌ (1, 1)¿¡ Á¡ÀÌ ÀÖÀ¸¹Ç·Î. ½ÇÁ¦ ÁÂÇ¥´Â x+1, y+1
+                // (1) í­íƒ„ í­ë°œ
+                // í­íƒ„ì˜ ì¤‘ì‹¬ ì¢Œí‘œ ê³„ì‚° (Blockì˜ x, yëŠ” 4x4 ë°•ìŠ¤ì˜ ì¢Œìƒë‹¨)
+                // í­íƒ„ ëª¨ì–‘ì´ (1, 1)ì— ì ì´ ìˆìœ¼ë¯€ë¡œ. ì‹¤ì œ ì¢Œí‘œëŠ” x+1, y+1
                 int destroyed = board.explode(currentBlock.x + 1, currentBlock.y + 1);
 
-                // Á¡¼ö ±ÔÄ¢: ºí·Ï ºñ·Ê º¸³Ê½º(ÀÓ½Ã)
+                // ì ìˆ˜ ê·œì¹™: ë¸”ë¡ ë¹„ë¡€ ë³´ë„ˆìŠ¤
                 if (destroyed > 0) {
                     if (destroyed <= 3)
                         score += destroyed * 30;
@@ -375,935 +326,140 @@ namespace Tetris {
                         score += destroyed * 90;
                 }
 
-                // 2. ÀúÀåÇØµ×´ø ¿ø·¡ ºí·ÏÀ» ´Ù½Ã ¼ÒÈ¯ (Next ºí·ÏÀ» ¼Ò¸ğÇÏÁö ¾ÊÀ½)
+                // (2) ì €ì¥í•´ë’€ë˜ ì›ë˜ ë¸”ë¡ì„ ë‹¤ì‹œ ì†Œí™˜ (Next ë¸”ë¡ì„ ì†Œëª¨í•˜ì§€ ì•ŠìŒ)
                 if (savedBlockForBomb != -1) {
                     currentBlock.spawn(savedBlockForBomb);
-                    savedBlockForBomb = -1; // ÀúÀå¼Ò ÃÊ±âÈ­
+                    savedBlockForBomb = -1; // ì €ì¥ì†Œ ì´ˆê¸°í™”
 
-                    // ¼ÒÈ¯µÈ ¿ø·¡ ºí·Ï ±×¸®±â
+                    // ì†Œí™˜ëœ ì›ë˜ ë¸”ë¡ ê·¸ë¦¬ê¸°
                     drawGhost(false);
                     currentBlock.draw();
-                    return false; // ÀÌ¹ø Æ½ Á¾·á (¹Ù·Î ³»·Á°¡Áö ¾ÊÀ½)
+
+                    return false;           // ì´ë²ˆ í‹± ì¢…ë£Œ (ë°”ë¡œ ë‚´ë ¤ê°€ì§€ ì•ŠìŒ)
                 }
             } 
             else 
-                board.merge(currentBlock);
+                board.merge(currentBlock);  // ì¼ë°˜ ë¸”ë¡ ê³ ì •
 
+            // ì¤„ ì‚­ì œ ì²˜ë¦¬
             int lines = board.processFullLines();
 
-            // [¼öÁ¤] ÁÙÀÌ ¾È Áö¿öÁ³À» ¶§ È¸»öÀ¸·Î ¾È ¹Ù²ñ, Á÷Á¢ º¸µå¸¦ ±×·ÁÁà¾ß ÇÔ
             if (lines == 0) 
-                board.draw();
+                board.draw();   // ì¤„ ì‚­ì œ ì—†ì–´ë„ í™”ë©´ ê°±ì‹ 
             
             if (lines > 0) {
                 totalLines += lines;
-                for (int k = 0; k < lines; k++) score += 100 + (level * 10) + (rand() % 10);
+                // ì ìˆ˜ ê³„ì‚° (ê¸°ë³¸ ì ìˆ˜ + ë ˆë²¨ ê°€ì¤‘ì¹˜)
+                for (int k = 0; k < lines; k++) 
+                    score += 100 + (level * 10) + (rand() % 10);
 
+                // ë ˆë²¨ì—… ì²´í¬
                 if (totalLines >= stages[level].clearLineGoal) {
                     totalLines = 0;
                     if (level < 9) level++;
                     board.setLevel(level);
-                    board.draw();
+                    board.draw();   // ë ˆë²¨ì—… ì‹œ ë²½ ìƒ‰ìƒ ë³€ê²½ ë°˜ì˜
                 }
                 showStats();
             }
 
+            // ë‹¤ìŒ ë¸”ë¡ ì†Œí™˜
             spawnNextBlock();
 
-            // [Ãß°¡] spawnNextBlock ¾È¿¡¼­ ±×¸®°ÚÁö¸¸, È¤½Ã ¸ğ¸£´Ï ¿©±â¼­µµ ±×·ÁÁİ´Ï´Ù.
-            // (spawnNextBlock¿¡ ÀÌ¹Ì Ãß°¡Çß´Ù¸é ÀÌ ÁÙÀº ¾ø¾îµµ µË´Ï´Ù)
+            // UI ì•ˆì „ ê°±ì‹ 
             drawGhost(false);
             currentBlock.draw();
 
-            return false;
+            return false; // ë” ì´ìƒ ë‚´ë ¤ê°€ì§€ ì•ŠìŒ
         }
 
-        // 2. ¹Ù´Ú¿¡ ¾È ´ê¾ÒÀ¸¸é ¾Æ·¡·Î ÀÌµ¿
+        // 2. ì¶©ëŒ ì—†ìŒ: ì‹¤ì œ ì´ë™ ì²˜ë¦¬
+        drawGhost(true);         // ì´ì „ ê³ ìŠ¤íŠ¸ ì§€ìš°ê¸°
+        currentBlock.draw(true); // ì´ì „ ë¸”ë¡ ì§€ìš°ê¸°
 
-        // [Ãß°¡] ÀÌµ¿ÇÏ±â Àü¿¡ '¿¾³¯ °í½ºÆ®' ¸ÕÀú Áö¿ì±â
-        drawGhost(true);
+        currentBlock.y++;        // ì¢Œí‘œ ì´ë™
 
-        currentBlock.draw(true); // ¿¾³¯ ºí·Ï Áö¿ì±â
-
-        currentBlock.y++; // ÁÂÇ¥ ÀÌµ¿
-
-        // [Ãß°¡] ÀÌµ¿ÇÑ °÷¿¡ '»õ °í½ºÆ®' ¸ÕÀú ±×¸®±â
-        drawGhost(false);
-
-        currentBlock.draw(); // »õ ºí·Ï ±×¸®±â (°í½ºÆ® À§¿¡ µ¤¾î¾¸)
+        drawGhost(false);        // ìƒˆ ê³ ìŠ¤íŠ¸ ê·¸ë¦¬ê¸°
+        currentBlock.draw();     // ìƒˆ ë¸”ë¡ ê·¸ë¦¬ê¸°
 
         return true;
     }
-
-  /*  void Game::moveSide(int dx) {
-        if (!board.checkCollision(currentBlock, currentBlock.x + dx, currentBlock.y, currentBlock.angle)) {
-            currentBlock.draw(true);
-            currentBlock.x += dx;
-            currentBlock.draw();
-        }
-    }*/
+    
+    /*
+     * [í•¨ìˆ˜: moveSide]
+     * ì„¤ëª…: ë¸”ë¡ì„ ì¢Œ(-1) ë˜ëŠ” ìš°(+1)ë¡œ ì´ë™ì‹œí‚µë‹ˆë‹¤.
+     * ì¸ì: dx (ì´ë™í•  ë°©í–¥ê³¼ ê±°ë¦¬)
+     */
     void Game::moveSide(int dx) {
         if (!board.checkCollision(currentBlock, currentBlock.x + dx, currentBlock.y, currentBlock.angle)) {
 
-            // 1. Áö¿ì±â (°í½ºÆ® ¸ÕÀú, ±×´ÙÀ½ ºí·Ï)
-            drawGhost(true);       // °í½ºÆ® Áö¿ò
-            currentBlock.draw(true); // ºí·Ï Áö¿ò
+            // 1. ì§€ìš°ê¸° (ê³ ìŠ¤íŠ¸ ë¨¼ì €, ê·¸ë‹¤ìŒ ë¸”ë¡)
+            drawGhost(true);         // ê³ ìŠ¤íŠ¸ ì§€ì›€
+            currentBlock.draw(true); // ë¸”ë¡ ì§€ì›€
 
-            // 2. ÀÌµ¿
+            // 2. ì´ë™
             currentBlock.x += dx;
 
-            // 3. ±×¸®±â (°í½ºÆ® ¸ÕÀú, ±×´ÙÀ½ ºí·Ï)
-            // °í½ºÆ®¸¦ ¸ÕÀú ±×·Á¾ß ºí·ÏÀÌ °í½ºÆ® À§¿¡ °ãÃÄÁú ¶§ ºí·ÏÀÌ ¿ì¼±¼øÀ§¸¦ °¡Áü
-            drawGhost(false);      // »õ À§Ä¡¿¡ °í½ºÆ® ±×¸²
-            currentBlock.draw();     // »õ À§Ä¡¿¡ ºí·Ï ±×¸²
+            // 3. ê·¸ë¦¬ê¸° (ê³ ìŠ¤íŠ¸ ë¨¼ì €, ê·¸ë‹¤ìŒ ë¸”ë¡)
+            // ê³ ìŠ¤íŠ¸ë¥¼ ë¨¼ì € ê·¸ë ¤ì•¼ ë¸”ë¡ì´ ê³ ìŠ¤íŠ¸ ìœ„ì— ê²¹ì³ì§ˆ ë•Œ ë¸”ë¡ì´ ìš°ì„ ìˆœìœ„ë¥¼ ê°€ì§
+            drawGhost(false);        // ìƒˆ ìœ„ì¹˜ì— ê³ ìŠ¤íŠ¸ ê·¸ë¦¼
+            currentBlock.draw();     // ìƒˆ ìœ„ì¹˜ì— ë¸”ë¡ ê·¸ë¦¼
         }
     }
 
-   /* void Game::rotateBlock() {
-        int nextAngle = currentBlock.getNextAngle();
-        int kickOffsets[] = { 0, -1, 1, -2, 2 };
-
-        for (int offset : kickOffsets) {
-            int testX = currentBlock.x + offset;
-            if (!board.checkCollision(currentBlock, testX, currentBlock.y, nextAngle)) {
-                currentBlock.draw(true);
-                currentBlock.angle = nextAngle;
-                currentBlock.x = testX;
-                currentBlock.draw();
-                return;
-            }
-        }
-    }*/
+    /*
+     * [í•¨ìˆ˜: rotateBlock]
+     * ì„¤ëª…: ë¸”ë¡ì„ ì‹œê³„ ë°©í–¥ìœ¼ë¡œ íšŒì „ì‹œí‚µë‹ˆë‹¤. (Wall Kick ë¡œì§ í¬í•¨)
+     */
     void Game::rotateBlock() {
         int nextAngle = currentBlock.getNextAngle();
+        // Wall Kick: íšŒì „ ì‹œ ë²½ì— ê±¸ë¦¬ë©´ ìœ„ì¹˜ë¥¼ ì˜®ê²¨ì„œ íšŒì „ì„ ì„±ê³µì‹œí‚´
         int kickOffsets[] = { 0, -1, 1, -2, 2 };
 
         for (int offset : kickOffsets) {
             int testX = currentBlock.x + offset;
             if (!board.checkCollision(currentBlock, testX, currentBlock.y, nextAngle)) {
 
-                // [Ãß°¡] È¸ÀüÇÏ±â Àü¿¡ '¿¾³¯ °í½ºÆ®' Áö¿ì±â
-                drawGhost(true);
+                drawGhost(true);         // íšŒì „í•˜ê¸° ì „ì— ì´ì „ ê³ ìŠ¤íŠ¸ ì§€ìš°ê¸°
+                currentBlock.draw(true); // ì´ì „ ë¸”ë¡ ì§€ìš°ê¸°
 
-                currentBlock.draw(true); // ¿¾³¯ ºí·Ï Áö¿ì±â
-
-                // »óÅÂ º¯°æ (È¸Àü ¹× À§Ä¡ º¸Á¤)
+                // ìƒíƒœ ë³€ê²½ (íšŒì „ ë° ìœ„ì¹˜ ë³´ì •)
                 currentBlock.angle = nextAngle;
                 currentBlock.x = testX;
 
-                // [Ãß°¡] È¸ÀüÇÑ »óÅÂÀÇ '»õ °í½ºÆ®' ¸ÕÀú ±×¸®±â
-                drawGhost(false);
+                drawGhost(false);        // [ì¶”ê°€] íšŒì „í•œ ìƒíƒœì˜ ìƒˆ ê³ ìŠ¤íŠ¸ ê·¸ë¦¬ê¸°
+                currentBlock.draw();     // ìƒˆ ë¸”ë¡ ê·¸ë¦¬ê¸°
 
-                currentBlock.draw(); // »õ ºí·Ï ±×¸®±â
                 return;
             }
         }
     }
 
-    void Game::showStats() {
-        static const int STAT_X = 77; // ±âÁØ XÁÂÇ¥ (NEXT ºí·Ï°ú ¶óÀÎ ¸ÂÃã)
-
-        // ====================================================
-        // 1. STATS ¹Ú½º (STAGE, SCORE, LINES ÅëÇÕ)
-        // ====================================================
-        int statsY = 8;     // ½ÃÀÛ YÁÂÇ¥
-        int boxWidth = 24;  // ¹Ú½º ³Êºñ (³»¿ë¹°¿¡ ¸ÂÃç ³Ë³ËÇÏ°Ô)
-        int boxHeight = 7;  // ³ôÀÌ
-
-        ConsoleHelper::setColor(Color::GRAY);
-
-        // [Å×µÎ¸® ±×¸®±â]
-        // »ó´Ü: ¦®¦¬¦¬ STATS ¦¬¦¬¦¯
-        ConsoleHelper::gotoXY(STAT_X, statsY);
-        std::cout << "¦®¦¬¦¬¦¬¦¬¦¬¦¬ STAT ¦¬¦¬¦¬¦¬¦¬¦¬¦¯";
-
-        // Áß´Ü (¸öÅë)
-        for (int i = 1; i < boxHeight; ++i) {
-            ConsoleHelper::gotoXY(STAT_X, statsY + i);
-            std::cout << "¦­                  ¦­";
-        }
-
-        // ÇÏ´Ü: ¦±¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦°
-        ConsoleHelper::gotoXY(STAT_X, statsY + boxHeight);
-        std::cout << "¦±¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦°";
-
-        // [³»¿ë Ãâ·Â]
-        // 1) STAGE
-        ConsoleHelper::gotoXY(STAT_X + 3, statsY + 2);
-        ConsoleHelper::setColor(Color::GRAY);
-        std::cout << "STAGE";
-
-        ConsoleHelper::gotoXY(STAT_X + 11, statsY + 2);
-        ConsoleHelper::setColor(static_cast<Color>((level % 6) + 1));
-        std::cout << std::setw(2) << level + 1; // 2ÀÚ¸®¼ö Á¤·Ä
-
-        // 2) ±¸ºĞ¼± (¼±ÅÃ»çÇ×, ±ò²ûÇÔÀ» À§ÇØ °ø¹é À¯Áö)
-
-        // 3) SCORE & LINES Çì´õ
-        ConsoleHelper::setColor(Color::GRAY);
-        ConsoleHelper::gotoXY(STAT_X + 3, statsY + 4);
-        std::cout << "SCORE    LINES";
-
-        // 4) SCORE & LINES °ª
-        ConsoleHelper::setColor(Color::WHITE);
-        ConsoleHelper::gotoXY(STAT_X + 3, statsY + 5);
-        std::cout << std::setw(5) << score;
-
-        ConsoleHelper::gotoXY(STAT_X + 12, statsY + 5);
-        std::cout << std::setw(5) << (stages[level].clearLineGoal - totalLines) << "  "; // ÀÜ»ó Á¦°Å¿ë °ø¹é
-
-        // ====================================================
-        // 2. BOMB ¹Ú½º (ÆøÅº ½ºÅ³)
-        // ====================================================
-        int bombY = statsY + boxHeight + 2; // STATS ¹Ú½º ÇÑ Ä­ ¾Æ·¡ (Y=16)
-        int bombHeight = 4; // ³ôÀÌ
-
-        ConsoleHelper::setColor(Color::GRAY);
-
-        // [Å×µÎ¸® ±×¸®±â]
-        // »ó´Ü: ¦®¦¬¦¬ BOMB ¦¬¦¬¦¬¦¯
-        ConsoleHelper::gotoXY(STAT_X, bombY);
-        std::cout << "¦®¦¬¦¬ BOMBS ¦¬¦¬¦¯";
-
-        // Áß´Ü
-        for (int i = 1; i < bombHeight - 2; ++i) {
-            ConsoleHelper::gotoXY(STAT_X, bombY + i);
-            std::cout << "¦­           ¦­";
-        }
-
-        // ÇÏ´Ü
-        ConsoleHelper::gotoXY(STAT_X, bombY + bombHeight - 2);
-        std::cout << "¦±¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦°";
-
-        // [³»¿ë Ãâ·Â]
-        ConsoleHelper::gotoXY(STAT_X + 4, bombY + 1); // Áß¾Ó Á¤·Ä ´À³¦
-        ConsoleHelper::setColor(Color::RED);
-        for (int i = 0; i < 3; ++i) {
-            if (i < bombCount) std::cout << "¡Ü ";
-            else std::cout << "¡Û ";
-        }
-    }
-
-    void Game::showNextBlockPreview() {
-        // [¼öÁ¤] º¸µå ¿À¸¥ÂÊ(X=76) ¹èÄ¡
-        int startX = 77;
-        int startY = 1; // º¸µå ¸Ç À­ÁÙ°ú ¸ÂÃã
-
-        // 1. UI Æ² ±×¸®±â (NEXT ½ºÅ¸ÀÏ)
-        ConsoleHelper::setColor(Color::GRAY);
-        ConsoleHelper::gotoXY(startX, startY);     std::cout << "¦®¦¬¦¬ NEXT ¦¬¦¬¦¯";
-        for (int i = 0; i < 4; i++) {
-            ConsoleHelper::gotoXY(startX, startY + 1 + i); std::cout << "¦­          ¦­";
-        }
-        ConsoleHelper::gotoXY(startX, startY + 5); std::cout << "¦±¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦°";
-
-        // 2. ºí·Ï ±×¸®±â
-        // ¹Ú½º ³»ºÎ ÁÂÇ¥ °è»ê (Æ² µÎ²² °í·Á)
-        int blockDrawX = startX + 3; // ¹Ú½º ¾ÈÂÊ X
-        int blockDrawY = startY + 1; // ¹Ú½º ¾ÈÂÊ Y
-
-        ShapeBlock temp;
-        temp.spawn(nextBlockType);
-
-        // ºí·Ï ¸ğ¾ç µ¥ÀÌÅÍ °¡Á®¿À±â
-        const auto& shape = ShapeRepository::getShape(nextBlockType)[0];
-        ConsoleHelper::setColor(ShapeRepository::getColorForType(nextBlockType));
-
-        for (int r = 0; r < 4; ++r) {
-            for (int c = 0; c < 4; ++c) {
-                // ¹Ú½º ³»ºÎ ÁÂÇ¥ ±âÁØÀ¸·Î ±×¸®±â
-                ConsoleHelper::gotoXY((r * 2) + blockDrawX, c + blockDrawY);
-                if (shape[c][r] == 1) {
-                    std::cout << "¡á";
-                }
-                else {
-                    std::cout << "  ";
-                }
-            }
-        }
-    }
-
-    void Game::selectLevel() {
-        ConsoleHelper::clear();
-
-        // [ÁÂÇ¥ °è»ê]
-        int boxX = 42;
-        int boxY = 6;
-
-        ConsoleHelper::setColor(Color::GRAY);
-
-        // 1. GAME KEY ¼³¸í ¹Ú½º (³ôÀÌ 1Ä­ ´Ã¸²)
-        ConsoleHelper::gotoXY(boxX, boxY);     std::cout << "¦®¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬ <GAME KEY> ¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¯";
-
-        ConsoleHelper::gotoXY(boxX, boxY + 1); std::cout << "¦­     UP    : Rotate Block              ¦­";
-        ConsoleHelper::gotoXY(boxX, boxY + 2); std::cout << "¦­     DOWN  : Move One-Step Down        ¦­";
-        ConsoleHelper::gotoXY(boxX, boxY + 3); std::cout << "¦­     SPACE : Move Bottom Down          ¦­";
-        ConsoleHelper::gotoXY(boxX, boxY + 4); std::cout << "¦­     LEFT  : Move Left                 ¦­";
-        ConsoleHelper::gotoXY(boxX, boxY + 5); std::cout << "¦­     RIGHT : Move Right                ¦­";
-        ConsoleHelper::gotoXY(boxX, boxY + 6); std::cout << "¦­     B     : Bomb Skill                ¦­";
-        ConsoleHelper::gotoXY(boxX, boxY + 7); std::cout << "¦­     P     : Pause / Menu              ¦­";
-
-        // [Ãß°¡] Á¾·á Å° ¼³¸í
-        ConsoleHelper::gotoXY(boxX, boxY + 8); std::cout << "¦­     Q     : Quit Game                 ¦­";
-
-        // ¹Ù´Ú Å×µÎ¸® ÇÑ Ä­ ¾Æ·¡·Î ÀÌµ¿ (boxY + 9)
-        ConsoleHelper::gotoXY(boxX, boxY + 9); std::cout << "¦±¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦°";
-
-        // 2. TOP N Á¡¼öÆÇ (À§Ä¡ Á¶Á¤)
-        int scoreX = boxX + 5;
-        int scoreY = boxY + 12; // ¹Ú½º°¡ Ä¿Á³À¸´Ï Á¡¼öÆÇµµ ÇÑ Ä­ ¾Æ·¡·Î(11 -> 12)
-
-        showHighScores(HIGH_SCORE_LIMIT, scoreX, scoreY);
-        ConsoleHelper::setColor(Color::GRAY);
-
-        // 3. ÀÔ·Â ¹Ş±â
-        ConsoleHelper::flushInput();
-
-        std::string input;
-        int selectedLevel = -1;
-
-        // ¾È³» ¹®±¸
-        int inputX = 42; // "Select Level [1-8] or [Q]uit: " ±æÀÌ °í·ÁÇØ¼­ Á¶Á¤
-        int inputY = 3;
-
-        ConsoleHelper::cursorVisible(true);
-
-        while (true) { // ¹«ÇÑ ·çÇÁ·Î º¯°æÇÏ¿© À¯È¿ ÀÔ·Â±îÁö ´ë±â
-            ConsoleHelper::setColor(Color::GRAY);
-            ConsoleHelper::gotoXY(inputX, inputY);
-            std::cout << "Select Level [1-8] or [Q]uit: "; // ¹®±¸ º¯°æ
-
-            // ÀÔ·ÂÃ¢ Áö¿ì±â
-            ConsoleHelper::setColor(Color::GRAY);
-            ConsoleHelper::gotoXY(inputX + 30, inputY);
-            std::cout << "          ";
-            ConsoleHelper::gotoXY(inputX + 30, inputY);
-
-            // ÀÔ·Â ¹Ş±â
-            if (!std::getline(std::cin, input) || input.empty()) {
-                ConsoleHelper::flushInput();
-                continue;
-            }
-
-            // [Á¾·á Ã¼Å©] Q ¶Ç´Â q ÀÔ·Â ½Ã
-            if (input == "q" || input == "Q") {
-                level = -1; // Á¾·á ½ÅÈ£·Î -1 »ç¿ë
-                break;      // ·çÇÁ Å»Ãâ
-            }
-
-            // [·¹º§ Ã¼Å©] 1~8 ¼ıÀÚ ÀÔ·Â ½Ã
-            if (input.size() == 1 && input.at(0) >= '1' && input.at(0) <= '8') {
-                selectedLevel = input.at(0) - '0';
-                level = selectedLevel - 1; // ½ÇÁ¦ ·¹º§(0~7) ¼³Á¤
-                break; // ·çÇÁ Å»Ãâ
-            }
-
-            // Àß¸øµÈ ÀÔ·Â
-            ConsoleHelper::gotoXY(41, inputY + 1);
-            ConsoleHelper::setColor(Color::RED);
-            std::cout << "Please enter 1-8 or Q to quit.";
-            ConsoleHelper::setColor(Color::GRAY);
-        }
-
-        ConsoleHelper::cursorVisible(false);
-    }
-
-    void Game::showLogo() {
-        ConsoleHelper::cursorVisible(false);
-
-        int startX = 28;  // ¿ŞÂÊ ¿©¹é
-        int startY = 3;  // ½ÃÀÛ ³ôÀÌ (¾ÆÆ®°¡ Ä¿¼­ Á¶±İ À§·Î ¿Ã¸²)
-
-        // ==========================================================
-        // 1. "BOMB!" ¾ÆÆ® Ãâ·Â (»¡°£»ö)
-        // ==========================================================
-        ConsoleHelper::setColor(Color::RED);
-
-        // ¹é½½·¡½Ã(\)¸¦ ¸ğµÎ ÀÌÁß(\\)À¸·Î Ã³¸®Çß½À´Ï´Ù.
-        std::string bombArt[6] = {
-            "__________              ___.  ._. ",
-            "\\______   \\ ____   _____\\_ |__| |",
-            " |    |  _//  _ \\ /     \\| __ \\ |",
-            " |    |   (  <_> )  Y Y  \\ \\_\\ \\|",
-            " |______  /\\____/|__|_|  /___  /_ ",
-            "        \\/             \\/    \\/\\/"
-        };
-
-        for (int i = 0; i < 6; i++) {
-            // Áß¾Ó Á¤·ÄÀ» À§ÇØ ¾à°£ ¿À¸¥ÂÊ(startX + 12)¿¡¼­ Ãâ·Â
-            ConsoleHelper::gotoXY(startX + 13, startY + i);
-            std::cout << bombArt[i];
-        }
-
-        // ==========================================================
-        // 2. "TETRIS" ¾ÆÆ® Ãâ·Â (ÇÑ ÁÙ¾¿ »ö»ó º¯°æ È¿°ú)
-        // ==========================================================
-        int textY = startY + 7; // BOMB ¾Æ·¡ÂÊ
-
-        // ¹«Áö°³ »ö»ó ¹è¿­
-        Color lineColors[6] = { Color::RED, Color::YELLOW, Color::GREEN, Color::SKY_BLUE, Color::BLUE, Color::VIOLET };
-        std::string tetrisArt[6] = {
-            "____________________________________________.___  _________",
-            "\\__    ___/\\_    _____/\\__    ___/\\______    \\  |/   _____/",
-            "  |    |    |    __)_    |    |    |       _/   |\\_____  \\ ",
-            "  |    |    |        \\   |    |    |    |   \\   |/        \\",
-            "  |____|   /_______  /   |____|    |____|_  /___/_______  /",
-            "                   \\/                     \\/            \\/ "
-        };
-
-        for (int i = 0; i < 6; i++) {
-            // ÇÑ ÁÙ¸¶´Ù »ö±òÀ» ´Ù¸£°Ô ÇØ¼­ ·¹Æ®·ÎÇÑ ´À³¦ ÁÖ±â
-            ConsoleHelper::setColor(lineColors[i]);
-            ConsoleHelper::gotoXY(startX, textY + i);
-            std::cout << tetrisArt[i];
-        }
-
-        // ==========================================================
-        // 3. ¾È³» ¹®±¸ ¹× ´ë±â ¾Ö´Ï¸ŞÀÌ¼Ç
-        // ==========================================================
-
-        int animBaseY = textY + 12; // ¾Ö´Ï¸ŞÀÌ¼Ç À§Ä¡
-
-        int tick = 0;               // [Ãß°¡] ¹İº¹ È½¼ö ¼¼´Â º¯¼ö
-        bool showText = false;      // [Ãß°¡] ÅØ½ºÆ® ±ôºıÀÓ
-
-        while (!_kbhit()) {
-            // [1] ±Û¾¾ ±ôºıÀÓ Ã³¸® (´À¸° ¹ÚÀÚ)
-            // 10¹ø µ¹ ¶§¸¶´Ù(¾à 0.5ÃÊ) »óÅÂ º¯°æ
-            if (tick % 10 == 0) {
-                showText = !showText;
-            }
-
-            // ±ôºıÀÓ ·ÎÁ÷
-            ConsoleHelper::gotoXY(startX + 15, textY + 9); // Áß¾Ó Á¤·Ä À§Ä¡ Á¶Á¤
-            if (showText) {
-                ConsoleHelper::setColor(Color::WHITE);
-                std::cout << "[ Please Press Any Key to Start ]";
-                ConsoleHelper::setColor(Color::WHITE);
-                // ÀÜ»ó Áö¿ì±â (³Êºñ¸¦ ³Ë³ËÇÏ°Ô 70Ä­ Á¤µµ·Î ÀâÀ½)
-                ConsoleHelper::setColor(Color::BLACK);
-            }
-            else
-                std::cout << "                                                ";
-
-            if (tick % 25 == 0) {
-                // ÀÜ»ó Áö¿ì±â
-                ConsoleHelper::setColor(Color::BLACK);
-                for (int y = animBaseY - 1; y < animBaseY + 6; ++y) {
-                    ConsoleHelper::gotoXY(startX, y);
-                    std::cout << "                                                                      ";
-                }
-
-                // Àå½Ä¿ë ·£´ı ºí·Ï ±×¸®±â
-                for (int k = 0; k < 4; ++k) {
-                    int rType = rand() % 7;
-                    int rX = startX + 5  + k * 16;
-                    int rY = animBaseY;
-
-                    const auto& shape = ShapeRepository::getShape(rType)[0];
-                    ConsoleHelper::setColor(ShapeRepository::getColorForType(rType));
-
-                    for (int i = 0; i < 4; ++i) {
-                        for (int j = 0; j < 4; ++j) {
-                            if (shape[i][j]) {
-                                ConsoleHelper::gotoXY(rX + j * 2, rY + i);
-                                std::cout << "¡á";
-                            }
-                        }
-                    }
-                }
-            }
-
-            tick = (tick + 1) % 50;
-            Sleep(50);
-        }
-
-        _getch();
-        ConsoleHelper::clear();
-    }
-
-    void Game::showGameOver() {
-        // 1. GAME OVER ¾ÆÆ® Á¤ÀÇ
-        std::string gameOverArt[6] = {
-            "  ________                       ________                     ._.",
-            " /  _____/_____    _____   ____   \\_____ \\___   __ ___________| |",
-            "/   \\  ___\\__  \\  /     \\_/ __ \\   /   |   \\  \\/ // __ \\_  __ \\ |",
-            "\\    \\_\\  \\/ __ \\|  Y Y  \\  ___/  /    |    \\   /\\  ___/|  | \\/\\|",
-            " \\______  (____  /__|_|  /\\___  > \\_______  /\\_/  \\___  >__|   __",
-            "        \\/     \\/      \\/     \\/          \\/          \\/       \\/"
-        };
-
-        // 2. ¹Ú½º Å©±â °è»ê (Àü°¢ ¹®ÀÚ °í·Á)
-        // ¾ÆÆ®ÀÇ °¡·Î ±æÀÌ°¡ ¾à 71Ä­ÀÔ´Ï´Ù. 
-        // Å×µÎ¸® '¦¬' ÇÏ³ª°¡ 2Ä­À» Â÷ÁöÇÏ¹Ç·Î, ¹Ú½º ³Êºñ´Â Â¦¼ö¿©¾ß µü ¸Â½À´Ï´Ù.
-        int boxWidth = 78;          // ³Ë³ËÇÏ°Ô ÀâÀ½ (Â¦¼ö)
-        int boxHeight = 12;         // ³ôÀÌ
-
-        // À§Ä¡ Á¶Á¤
-        int startX = 21;
-        int startY = 9;
-
-        // 3. ¹è°æ Áö¿ì±â (°ËÀº»öÀ¸·Î Ã¤¿ò)
-        ConsoleHelper::setColor(Color::BLACK);
-        for (int y = 0; y < boxHeight; ++y) {
-            ConsoleHelper::gotoXY(startX, startY + y);
-            // °ø¹éÀ¸·Î Ã¤¿ö µÚÀÇ °ÔÀÓ È­¸é °¡¸®±â
-            for (int x = 0; x < boxWidth; ++x) {
-                std::cout << " ";
-            }
-        }
-
-        // 4. Å×µÎ¸® ±×¸®±â (¿äÃ»ÇÏ½Å ¹®ÀÚ Àû¿ë)
-        ConsoleHelper::setColor(Color::WHITE); 
-
-        // [»ó´Ü] ¦®¦¬¦¬¦¬¦¬¦¬¦¯
-        ConsoleHelper::gotoXY(startX, startY);
-        std::cout << "¦®";
-        // °¡¿îµ¥ ¼±: (ÀüÃ¼³Êºñ - ¾çÂÊ¸ğ¼­¸®4Ä­) / 2Ä­¾¿
-        for (int i = 0; i <= (boxWidth - 4); ++i) std::cout << "¦¬";
-        std::cout << "¦¯";
-
-        // [Áß´Ü] ¦­     ¦­
-        for (int i = 1; i < boxHeight - 1; ++i) {
-            ConsoleHelper::gotoXY(startX, startY + i);
-            std::cout << "¦­";
-            // ¿À¸¥ÂÊ º® À§Ä¡: startX + ÀüÃ¼³Êºñ - 2Ä­(µÎ²²)
-            ConsoleHelper::gotoXY(startX + boxWidth - 2, startY + i);
-            std::cout << "¦­";
-        }
-
-        // [ÇÏ´Ü] ¦±¦¬¦¬¦¬¦¬¦¬¦°
-        ConsoleHelper::gotoXY(startX, startY + boxHeight - 1);
-        std::cout << "¦±";
-        for (int i = 0; i <= (boxWidth - 4); ++i) std::cout << "¦¬";
-        std::cout << "¦°";
-
-        // 5. ¾ÆÆ® Ãâ·Â (Å×µÎ¸® ¾ÈÂÊ¿¡ ¹èÄ¡)
-        ConsoleHelper::setColor(Color::WHITE);
-        for (int i = 0; i < 6; ++i) {
-            // startX + 3 (¾à°£ÀÇ ¿©¹é)
-            ConsoleHelper::gotoXY(startX + 4, startY + 2 + i);
-            std::cout << gameOverArt[i];
-        }
-
-        // 6. ¾È³» ¸Ş½ÃÁö º¯¼ö ¼³Á¤
-        ConsoleHelper::setColor(Color::GRAY);
-        std::string msg = "[ Press Enter to Continue ]";
-
-        // ¸Ş½ÃÁö Áß¾Ó ÁÂÇ¥ °è»ê
-        int msgX = startX + (boxWidth - msg.length()) / 2 ;
-        int msgY = startY + 9;
-
-        // ±ôºıÀÓ Á¦¾î º¯¼ö
-        int tick = 0;
-        bool showText = true;
-
-        // 7. ·çÇÁ: Å° ÀÔ·Â ´ë±â + ±ôºıÀÓ ¾Ö´Ï¸ŞÀÌ¼Ç
-        while (true) {
-            // (1) Å° ÀÔ·Â È®ÀÎ (Non-blocking)
-            if (_kbhit()) {
-                int key = _getch();
-                if (key == 13) { // Enter
-                    break; // ·çÇÁ Å»Ãâ -> °ÔÀÓ Á¾·á Ã³¸®·Î ³Ñ¾î°¨
-                }
-            }
-
-            // (2) ±ôºıÀÓ ·ÎÁ÷ (10Æ½ = 0.5ÃÊ ÁÖ±â)
-            if (tick % 10 == 0) {
-                ConsoleHelper::gotoXY(msgX, msgY);
-
-                if (showText) {
-                    // ±Û¾¾ º¸ÀÌ±â
-                    ConsoleHelper::setColor(Color::WHITE);
-                    std::cout << msg;
-                }
-                else {
-                    // ±Û¾¾ Áö¿ì±â (°ø¹éÀ¸·Î µ¤¾î¾²±â)
-                    // ¸Ş½ÃÁö ±æÀÌ¸¸Å­ °ø¹é Ãâ·Â
-                    for (int i = 0; i < msg.length(); ++i) std::cout << " ";
-                }
-                showText = !showText; // »óÅÂ ¹İÀü (º¸ÀÓ <-> ¾Èº¸ÀÓ)
-            }
-
-            Sleep(50); // 0.05ÃÊ ´ë±â
-            tick = (tick + 1) % 30; // ¿À¹öÇÃ·Î¿ì ¹æÁö
-        }
-    }
-   
-    void Game::drawGhost(bool erase) {
-        // 1. ÇöÀç ºí·ÏÀ» º¹»ç (À§Ä¡, È¸Àü°¢µµ, ¸ğ¾ç ´Ù º¹»çµÊ)
-        ShapeBlock ghost = currentBlock;
-
-        // 2. ¹Ù´Ú¿¡ ´êÀ» ¶§±îÁö ³»¸² (Hard Drop °è»ê)
-        while (!board.checkCollision(ghost, ghost.x, ghost.y + 1, ghost.angle)) {
-            ghost.y++;
-        }
-
-        // 3. °í½ºÆ® ±×¸®±â (isGhost = true ·Î È£Ãâ)
-        ghost.draw(erase, true);
-        //drawGhost(true) => °í½ºÆ® Áö¿ì±â
-        //drawGhost(false) => °í½ºÆ® ±×¸®±â
-    }
-
-    // [Game Å¬·¡½º ³»ºÎ private ÇÔ¼ö·Î Ãß°¡]
-
-    void Game::showHoldBlock() {
-    // [¼öÁ¤] º¸µå ¿ŞÂÊ(X=32) ¹èÄ¡ (º¸µå°¡ 48¿¡¼­ ½ÃÀÛÇÏ¹Ç·Î ±× ¿ŞÂÊ)
-    int startX = 32;
-    int startY = 1; // NEXT ºí·Ï°ú ³ôÀÌ ¸ÂÃã (±âÁ¸ 13¿¡¼­ 1·Î »óÇâ)
-
-    // 1. UI Æ² ±×¸®±â
-    ConsoleHelper::setColor(Color::GRAY);
-    ConsoleHelper::gotoXY(startX, startY);     std::cout << "¦®¦¬¦¬ HOLD ¦¬¦¬¦¯";
-    for (int i = 0; i < 4; i++) {
-        ConsoleHelper::gotoXY(startX, startY + 1 + i); std::cout << "¦­          ¦­";
-    }
-    ConsoleHelper::gotoXY(startX, startY + 5); std::cout << "¦±¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦°";
-
-    // 2. ÀúÀåµÈ ºí·ÏÀÌ ¾øÀ¸¸é ¸®ÅÏ
-    if (heldBlockType == -1) return;
-
-    // 3. ÀúÀåµÈ ºí·Ï ±×¸®±â
-    int blockDrawX = startX + 3;
-    int blockDrawY = startY + 1;
-
-    const auto& shape = ShapeRepository::getShape(heldBlockType)[0];
-    ConsoleHelper::setColor(ShapeRepository::getColorForType(heldBlockType));
-
-    for (int r = 0; r < 4; ++r) {
-        for (int c = 0; c < 4; ++c) {
-            ConsoleHelper::gotoXY((r * 2) + blockDrawX, c + blockDrawY);
-            if (shape[c][r] == 1) {
-                std::cout << "¡á";
-            }
-            else {
-                std::cout << "  ";
-            }
-        }
-    }
-}
-
-    void Game::promptNameAndSaveScore() {
-        ConsoleHelper::clear();              // È­¸é ½Ï Áö¿ì°í
-        ConsoleHelper::setColor(Color::GRAY);
-
-        int startX = 42;
-        int startY = 4;
-
-        // °£´ÜÇÑ ÆË¾÷ ¹Ú½º (ASCII·Î)
-        ConsoleHelper::gotoXY(startX, startY);     std::cout << "¦®¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¯";
-        ConsoleHelper::gotoXY(startX, startY + 1); std::cout << "¦­        SCORE RECORD       ¦­";
-        ConsoleHelper::gotoXY(startX, startY + 2); std::cout << "¦­                           ¦­";
-        ConsoleHelper::gotoXY(startX, startY + 3); std::cout << "¦­  Name :                   ¦­";
-        ConsoleHelper::gotoXY(startX, startY + 4); std::cout << "¦­                           ¦­";
-        ConsoleHelper::gotoXY(startX, startY + 5); std::cout << "¦­  Score: " << score;
-        int padding = 18 - std::to_string(score).size();
-        for (int i = 0; i < padding; i++) std::cout << " ";
-        std::cout << "¦­";
-        ConsoleHelper::gotoXY(startX, startY + 6); std::cout << "¦±¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦¬¦°";
-
-        // [Ãß°¡] Á¡¼ö Ãâ·Â
-        int scoreX = startX;
-        int scoreY = startY + 10;
-
-        showHighScores(HIGH_SCORE_LIMIT, scoreX, scoreY);
-        ConsoleHelper::setColor(Color::GRAY);
-
-        // ÀÔ·Â À§Ä¡·Î Ä¿¼­ ¿Å±â±â (¡°Name : ¡± µÚ)
-        ConsoleHelper::gotoXY(startX + 10, startY + 3);
-
-
-        // ÀÌÀü ÀÔ·Â ºñ¿ì±â
-        ConsoleHelper::flushInput();
-
-        // ´Ğ³×ÀÓ ÀÔ·Â ½Ã Ä¿¼­ º¸ÀÌ±â
-        ConsoleHelper::cursorVisible(true);
-
-        std::string name;
-        int maxLength = 16;
-        while (true) {
-            int key = _getch();
-
-            // 1. ¿£ÅÍ Å° (ÀÔ·Â ¿Ï·á)
-            if (key == 13) {
-                if (name.empty()) name = "NONAME"; // ºóÄ­ÀÌ¸é ±âº»°ª
-                break;
-            }
-            // 2. ¹é½ºÆäÀÌ½º (Áö¿ì±â)
-            else if (key == 8) {
-                if (!name.empty()) {
-                    name.pop_back();      // ±ÛÀÚ »èÁ¦
-                    std::cout << "\b \b"; // È­¸é¿¡¼­µµ Áö¿ì±â (µÚ·Î°¡¼­ °ø¹éÂï°í ´Ù½Ã µÚ·Î)
-                }
-            }
-            // 3. ÀÏ¹İ ¹®ÀÚ (¿µ¾î, ¼ıÀÚ µî)
-            // Æ¯¼ö¹®ÀÚ³ª ÇÑ±ÛÀº Ã³¸®°¡ º¹ÀâÇÏ¹Ç·Î ¿©±â¼± Á¦¿ÜÇÏ°Å³ª ´Ü¼ø Ã³¸®
-            else if (name.length() < maxLength && key >= 32 && key <= 126) {
-                name += (char)key;
-                std::cout << (char)key;
-            }
-        }
-
-        //ÀÔ·Â ³¡³µÀ¸´Ï Ä¿¼­ ´Ù½Ã ¼û±è
-        ConsoleHelper::cursorVisible(false);
-
-        // ÅØ½ºÆ® ÆÄÀÏ¿¡ append
-        // ½ÇÇà ÆÄÀÏÀÌ ÀÖ´Â Æú´õ¿¡ score.txt°¡ °è¼Ó ½×ÀÌ´Â ÇüÅÂ
-        std::ofstream out("score.txt", std::ios::app);
-        if (out.is_open()) {
-            // ¿¹: HEOEUN<tab>12340 ÀÌ·± Çü½ÄÀ¸·Î ÀúÀå, ÀÌ¸§°ú Á¡¼ö¸¦ ±¸º°ÇÏ´Â ±¸º°ÀÚ¸¦ ÅÇÀ¸·Î ÇÔ
-            out << name << "\t" << score << "\n";
-            out.close();
-        }
-
-        // [Ãß°¡] Á¡¼ö ÀúÀåÇÏ°í µî¼ö ÃÖ½ÅÈ­ ÇØ¼­ ´Ù½Ã Ãâ·Â
-        showHighScores(HIGH_SCORE_LIMIT, scoreX, scoreY, &name, score);
-
-        // [¼öÁ¤] ÀúÀå ¿Ï·á ¸àÆ® ±ôºıÀÓ ¾Ö´Ï¸ŞÀÌ¼Ç
-        std::string savedMsg = "[ Saved! Press Any Key to Restart ]";
-
-        int msgX = startX;
-        int msgY = startY + 8;
-
-        int tick = 0;
-        bool showText = true;
-
-        // Å°¸¦ ´©¸¦ ¶§±îÁö ¹«ÇÑ ·çÇÁ
-        while (true) {
-            // 1. Å° ÀÔ·Â È®ÀÎ (¾È ¸ØÃã)
-            if (_kbhit()) {
-                _getch(); // ÀÔ·ÂµÈ Å° ¼Òºñ (¹öÆÛ ºñ¿ì±â)
-                break;    // ·çÇÁ Å»Ãâ -> ÇÔ¼ö Á¾·á -> °ÔÀÓ Àç½ÃÀÛ
-            }
-
-            // 2. ±ôºıÀÓ ·ÎÁ÷ (0.5ÃÊ ÁÖ±â)
-            if (tick % 10 == 0) {
-                ConsoleHelper::gotoXY(msgX, msgY);
-
-                if (showText) {
-                    // ÅØ½ºÆ® º¸ÀÌ±â (ÃÊ·Ï»ö)
-                    ConsoleHelper::setColor(Color::GREEN);
-                    std::cout << savedMsg;
-                }
-                else {
-                    // ÅØ½ºÆ® Áö¿ì±â (°ø¹é)
-                    for (int i = 0; i < savedMsg.length(); ++i) std::cout << " ";
-                }
-                showText = !showText; // »óÅÂ ¹İÀü
-            }
-
-            Sleep(50);
-            tick = (tick + 1) % 30;
-        }
-
-        // »ö»ó ÃÊ±âÈ­
-        ConsoleHelper::setColor(Color::BLACK);
-    }
-
-    void Game::showHighScores(int maxCount, int startX, int startY,
-        const std::string* curName, int curScore) {
-        std::ifstream in("score.txt");
-        if (!in.is_open()) {
-            ConsoleHelper::gotoXY(startX, startY);
-            ConsoleHelper::setColor(Color::GRAY);
-            std::cout << "No scores yet.";
-            ConsoleHelper::setColor(Color::BLACK);
-            return;
-        }
-
-        struct HighScore {
-            std::string name;
-            int score;
-        };
-
-        std::vector<HighScore> scores;
-        std::string line;
-
-        while (std::getline(in, line)) {
-            if (line.empty()) continue;
-
-            // name \t score Çü½Ä °¡Á¤
-            size_t tabPos = line.rfind('\t');
-            if (tabPos == std::string::npos) continue;
-
-            std::string name = line.substr(0, tabPos);
-            std::string scoreStr = line.substr(tabPos + 1);
-
-            try {
-                int s = std::stoi(scoreStr);
-                scores.push_back({ name, s });
-            }
-            catch (...) {
-                // ¼ıÀÚ ÆÄ½Ì ¾È µÇ¸é ½ºÅµ
-                continue;
-            }
-        }
-
-        in.close();
-
-        if (scores.empty()) {
-            ConsoleHelper::gotoXY(startX, startY);
-            ConsoleHelper::setColor(Color::GRAY);
-            std::cout << "No scores yet.";
-            ConsoleHelper::setColor(Color::BLACK);
-            return;
-        }
-
-        // Á¡¼ö ³»¸²Â÷¼ø Á¤·Ä
-        sort(scores.begin(), scores.end(),
-            [](const HighScore& a, const HighScore& b) {
-                return a.score > b.score;
-            });
-
-        int count = maxCount;
-        if (count > static_cast<int>(scores.size())) {
-            count = static_cast<int>(scores.size());
-        }
-
-        // Çì´õ Ãâ·Â
-        ConsoleHelper::setColor(Color::WHITE);
-        ConsoleHelper::gotoXY(startX, startY);
-        std::cout << "RANK  NAME               SCORE";
-
-        bool marked = false; // NEW! ´Â ÇÑ ÁÙ¸¸ Ç¥½Ã
-
-        // ³»¿ë Ãâ·Â
-        ConsoleHelper::setColor(Color::GRAY);
-        for (int i = 0; i < count; ++i) {
-            ConsoleHelper::gotoXY(startX, startY + 1 + i);
-
-            // µî¼ö¿¡ µû¶ó »ö °áÁ¤
-            if (i == 0) {
-                ConsoleHelper::setColor(Color::DARK_YELLOW);  // 1µî
-            }
-            else if (i == 1) {
-                ConsoleHelper::setColor(Color::WHITE);        // 2µî
-            }
-            else if (i == 2) {
-                ConsoleHelper::setColor(Color::GRAY);         // 3µî
-            }
-            else {
-                ConsoleHelper::setColor(Color::DARK_GRAY);    // ³ª¸ÓÁö
-            }
-
-            if (i + 1 < 10)
-                std::cout << (i + 1) << ". " << std::setw(3) << " ";
-            else
-                std::cout << std::setw(2) << (i + 1) << "." << std::setw(3) << " ";
-
-            std::string n = scores[i].name;
-            if (n.size() > 15) 
-                n = n.substr(0, 15);   // ³Ê¹« ±ä ÀÌ¸§Àº Àß¶ó¹ö¸®±â
-            
-            std::cout << std::left << std::setw(17) << n;       // ÀÌ¸§ ¿ŞÂÊ Á¤·Ä
-            std::cout << std::right << std::setw(7) << scores[i].score; // Á¡¼ö ¿À¸¥ÂÊ Á¤·Ä
-
-            bool isNew = (curName != nullptr && !marked &&
-                scores[i].name == *curName && scores[i].score == curScore);
-            if (isNew) {
-                std::cout << "  <- NEW!";
-                marked = true;
-            }
-        }
-
-        ConsoleHelper::setColor(Color::BLACK);
-    }
-
-    // [Ãß°¡] ÆøÅº ½ºÅ³ »ç¿ë ÇÔ¼ö
+    /*
+     * [í•¨ìˆ˜: useBomb]
+     * ì„¤ëª…: í˜„ì¬ ë¸”ë¡ì„ í­íƒ„ ì•„ì´í…œìœ¼ë¡œ êµì²´í•©ë‹ˆë‹¤. (íšŸìˆ˜ ì œí•œ)
+     */
     void Game::useBomb() {
-        // 1. ÆøÅºÀÌ ³²¾ÆÀÖ°í, ÇöÀç ÀÌ¹Ì ÆøÅºÀÌ ¾Æ´Ñ °æ¿ì¿¡¸¸ »ç¿ë °¡´É
+        // 1. í­íƒ„ì´ ë‚¨ì•„ìˆê³ , í˜„ì¬ ì´ë¯¸ í­íƒ„ì´ ì•„ë‹Œ ê²½ìš°ì—ë§Œ ì‚¬ìš© ê°€ëŠ¥
         if (bombCount > 0 && currentBlock.getType() != BOMB_TYPE) {
 
-            // 2. ÇöÀç ºí·Ï Áö¿ì±â (È­¸é °»½Å)
+            // 2. í˜„ì¬ ë¸”ë¡ ì§€ìš°ê¸° (í™”ë©´ ê°±ì‹ )
             drawGhost(true);
             currentBlock.draw(true);
 
-            // 3. ÇöÀç ºí·Ï Á¤º¸ ÀúÀå (Å¸ÀÔ¸¸ ÀúÀå)
+            // 3. í˜„ì¬ ë¸”ë¡ ì •ë³´ ì €ì¥ (íƒ€ì…ë§Œ ì €ì¥)
             savedBlockForBomb = currentBlock.getType();
 
-            // 4. ÇöÀç ºí·ÏÀ» ÆøÅºÀ¸·Î ±³Ã¼
+            // 4. í˜„ì¬ ë¸”ë¡ì„ í­íƒ„ìœ¼ë¡œ êµì²´
             currentBlock.spawn(BOMB_TYPE);
 
-            // 5. °¹¼ö Â÷°¨ ¹× UI °»½Å
+            // 5. ê°¯ìˆ˜ ì°¨ê° ë° UI ê°±ì‹ 
             bombCount--;
             showStats();
 
-            // 6. ÆøÅº ±×¸®±â
+            // 6. í­íƒ„ ê·¸ë¦¬ê¸°
             drawGhost(false);
             currentBlock.draw();
-        }
-    }
-
-    // 0: Resume (°è¼Ó), 1: Quit (³ª°¡±â) ¸¦ ¸®ÅÏÇÔ
-    int Game::drawPausePopup() {
-        ConsoleHelper::clear();
-
-        // 1. ASCII ¾ÆÆ® Ãâ·Â
-        std::string pauseArt[5] = {
-            "___________   __ __  ______ ____  ",
-            "\\____ \\__  \\ |  |  \\/  ___// __ \\ ",
-            "|  |_> > __ \\|  |  /\\___ \\\\  ___/ ",
-            "|   __(____  /____//____  >\\___  > ",
-            "|__|       \\/           \\/     \\/ "
-        };
-
-        int startX = 42;
-        int startY = 10; // ¸Ş´º °ø°£ È®º¸¸¦ À§ÇØ Á¶±İ ¿Ã¸²
-
-        ConsoleHelper::setColor(Color::RED);
-        for (int i = 0; i < 5; ++i) {
-            ConsoleHelper::gotoXY(startX, startY + i);
-            std::cout << pauseArt[i];
-        }
-
-        // 2. ¸Ş´º ¼±ÅÃ ·ÎÁ÷
-        int menuIndex = 0; // 0: Resume, 1: Quit
-        int textX = startX + 10;
-        int textY = startY + 7;
-
-        while (true) {
-            // ¸Ş´º ÅØ½ºÆ® ±×¸®±â (¼±ÅÃµÈ °Í¸¸ °­Á¶)
-            ConsoleHelper::gotoXY(textX, textY);
-            if (menuIndex == 0) {
-                ConsoleHelper::setColor(Color::WHITE); // ¼±ÅÃµÊ (Èò»ö & È­»ìÇ¥)
-                std::cout << "¢º [ RESUME ]";
-            }
-            else {
-                ConsoleHelper::setColor(Color::GRAY);  // ¾È ¼±ÅÃµÊ (È¸»ö)
-                std::cout << "  [ RESUME ]";
-            }
-
-            ConsoleHelper::gotoXY(textX, textY + 2);
-            if (menuIndex == 1) {
-                ConsoleHelper::setColor(Color::WHITE);
-                std::cout << "¢º [ QUIT ]";
-            }
-            else {
-                ConsoleHelper::setColor(Color::GRAY);
-                std::cout << "  [ QUIT ]";
-            }
-
-            // Å° ÀÔ·Â ´ë±â
-            int key = _getch();
-
-            // ¹æÇâÅ° Ã³¸®
-            if (key == 224) {
-                key = _getch(); // ½ÇÁ¦ Å° ÄÚµå ÀĞ±â
-                if (key == 72) { // UP
-                    menuIndex = 0;
-                }
-                else if (key == 80) { // DOWN
-                    menuIndex = 1;
-                }
-            }
-            // ¿£ÅÍÅ°(13) ¶Ç´Â ½ºÆäÀÌ½º¹Ù(32) -> ¼±ÅÃ ¿Ï·á
-            else if (key == 13 || key == 32) {
-                return menuIndex; // 0 ¶Ç´Â 1 ¸®ÅÏ
-            }
-            // PÅ° -> Resume°ú µ¿ÀÏ Ãë±Ş
-            else if (key == 'p' || key == 'P') {
-                return 0; // Resume
-            }
         }
     }
 }

@@ -23,6 +23,7 @@
     <ClCompile Include="Board.cpp" />
     <ClCompile Include="ConsoleHelper.cpp" />
     <ClCompile Include="Game.cpp" />
+    <ClCompile Include="Game_UI.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="ShapeRepository.cpp" />
   </ItemGroup>
